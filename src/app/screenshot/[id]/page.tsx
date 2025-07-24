@@ -38,8 +38,9 @@ export default function ScreenshotDetailPage() {
         } else {
           setError('Screenshot not found')
         }
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch screenshot')
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch screenshot'
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -56,8 +57,9 @@ export default function ScreenshotDetailPage() {
       await api.screenshots.update(screenshot.id, editData)
       setScreenshot({ ...screenshot, ...editData })
       setIsEditing(false)
-    } catch (err: any) {
-      alert(err.message || 'Failed to update screenshot')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update screenshot'
+      alert(errorMessage)
     } finally {
       setSaving(false)
     }

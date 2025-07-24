@@ -17,9 +17,10 @@ export function ScreenshotList() {
       const data = await api.screenshots.list()
       console.log('Screenshots fetched:', data)
       setScreenshots(data)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching screenshots:', err)
-      setError(err.message || 'Failed to fetch screenshots')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch screenshots'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -35,8 +36,9 @@ export function ScreenshotList() {
     try {
       await api.screenshots.delete(id)
       setScreenshots(screenshots.filter(s => s.id !== id))
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete screenshot')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete screenshot'
+      alert(errorMessage)
     }
   }
 
