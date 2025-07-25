@@ -42,8 +42,8 @@ export default function UploadPage() {
     try {
       await api.screenshots.upload(file, tags)
       router.push('/')
-    } catch (err: any) {
-      setError(err.message || 'Failed to upload screenshot')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to upload screenshot')
     } finally {
       setUploading(false)
     }
@@ -58,7 +58,7 @@ export default function UploadPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         <h1 className="text-3xl font-bold mb-8">Upload Screenshot</h1>
         
         <div className="max-w-2xl mx-auto">

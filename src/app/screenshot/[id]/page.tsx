@@ -78,7 +78,7 @@ export default function ScreenshotDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-8 pt-24">
           <div className="text-center">Loading...</div>
         </div>
       </div>
@@ -89,7 +89,7 @@ export default function ScreenshotDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-8 pt-24">
           <div className="text-center text-red-500">{error || 'Screenshot not found'}</div>
         </div>
       </div>
@@ -99,7 +99,7 @@ export default function ScreenshotDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         <Link
           href="/"
           className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-6"

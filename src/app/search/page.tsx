@@ -35,8 +35,8 @@ export default function SearchPage() {
     try {
       const data = await api.search.query(query)
       setResults(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to search screenshots')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to search screenshots')
     } finally {
       setSearching(false)
     }
@@ -47,8 +47,8 @@ export default function SearchPage() {
       const data = await api.search.history()
       setHistory(data)
       setShowHistory(true)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load search history')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load search history')
     }
   }
 
@@ -60,7 +60,7 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         <h1 className="text-3xl font-bold mb-8">Search Screenshots</h1>
 
         <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-8">

@@ -15,6 +15,8 @@ async function getAuthHeaders() {
   return {
     'Authorization': `Bearer ${session.access_token}`,
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true', // 跳过ngrok浏览器警告
+    'User-Agent': 'InstagramApp/1.0', // 模拟非浏览器请求
   }
 }
 
@@ -80,6 +82,8 @@ export const api = {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+          'User-Agent': 'InstagramApp/1.0',
         },
         body: JSON.stringify(payload),
       })
@@ -93,14 +97,57 @@ export const api = {
       return response.json()
     },
 
-    list: async (): Promise<Screenshot[]> => {
-      const headers = await getAuthHeaders()
-      const response = await fetch(`${API_URL}/screenshot-note`, {
-        headers,
-      })
-      
-      if (!response.ok) throw new Error('Failed to fetch screenshots')
-      return response.json()
+    list: async (skip: number = 0, limit: number = 20): Promise<Screenshot[]> => {
+      try {
+        const headers = await getAuthHeaders()
+        const url = `${API_URL}/screenshot-note?skip=${skip}&limit=${limit}`
+        console.log('Fetching screenshots from:', url)
+        
+        const response = await fetch(url, {
+          headers,
+        })
+        
+        console.log('Screenshot API response status:', response.status)
+        
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('Screenshot API error:', response.status, errorText)
+          console.error('Response headers:', Object.fromEntries(response.headers.entries()))
+          
+          // 如果是500错误，返回空数组而不是抛出错误
+          if (response.status === 500) {
+            console.warn('Backend returned 500 error, returning empty screenshots array')
+            return []
+          }
+          
+          throw new Error(`Failed to fetch screenshots: ${response.status} ${errorText}`)
+        }
+        
+        // 检查响应内容类型
+        const contentType = response.headers.get('content-type')
+        console.log('Response content-type:', contentType)
+        
+        // 如果不是JSON，记录完整响应并返回空数组
+        if (!contentType || !contentType.includes('application/json')) {
+          const responseText = await response.text()
+          console.error('❌ Response is not JSON:', {
+            status: response.status,
+            contentType,
+            url: response.url,
+            responsePreview: responseText.substring(0, 200) + '...'
+          })
+          console.warn('Returning empty array due to non-JSON response')
+          return []
+        }
+        
+        const data = await response.json()
+        console.log('Screenshots fetched successfully:', data)
+        return data
+      } catch (error) {
+        console.error('Error in screenshot list API call:', error)
+        // 返回空数组而不是抛出错误，让界面能正常显示
+        return []
+      }
     },
 
     update: async (id: string, data: { user_note?: string }) => {
@@ -117,13 +164,35 @@ export const api = {
 
     delete: async (id: string) => {
       const headers = await getAuthHeaders()
+      console.log(`正在删除截图: ${id}`)
+      
       const response = await fetch(`${API_URL}/screenshot/${id}`, {
         method: 'DELETE',
         headers,
       })
       
-      if (!response.ok) throw new Error('Failed to delete screenshot')
-      return response.json()
+      console.log(`删除请求响应状态: ${response.status}`)
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('删除截图失败:', response.status, errorText)
+        throw new Error(`删除截图失败: ${response.status} - ${errorText}`)
+      }
+      
+      // 204 No Content 状态码表示删除成功，但没有响应内容
+      if (response.status === 204) {
+        console.log('截图删除成功 (204 No Content)')
+        return { success: true }
+      }
+      
+      // 如果有其他成功状态码且有内容，尝试解析 JSON
+      try {
+        return await response.json()
+      } catch (e) {
+        // 如果解析失败但状态码表示成功，返回成功标识
+        console.log('删除成功，但响应为空或无效 JSON')
+        return { success: true }
+      }
     },
   },
 
