@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react'
 import { X, Calendar, Eye, Tag } from 'lucide-react'
 import { format } from 'date-fns'
 import { Screenshot } from '@/lib/api'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface ScreenshotDetailModalProps {
   screenshot: Screenshot | null
@@ -209,10 +211,27 @@ export function ScreenshotDetailModal({
                         <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
                         详细分析
                       </h3>
-                      <div className="prose prose-sm max-w-none bg-green-50 p-4 rounded-lg">
-                        <pre className="whitespace-pre-wrap text-gray-700 font-sans">
+                      <div className="prose prose-sm max-w-none bg-green-50 p-4 rounded-lg overflow-hidden">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            // 自定义组件样式
+                            h1: ({children}) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
+                            h2: ({children}) => <h2 className="text-lg font-semibold mt-3 mb-2 text-gray-900">{children}</h2>,
+                            h3: ({children}) => <h3 className="text-base font-medium mt-2 mb-1 text-gray-900">{children}</h3>,
+                            p: ({children}) => <p className="mb-2 leading-relaxed">{children}</p>,
+                            ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                            ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                            li: ({children}) => <li className="text-gray-700">{children}</li>,
+                            code: ({children}) => <code className="bg-gray-200 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
+                            pre: ({children}) => <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-sm">{children}</pre>,
+                            blockquote: ({children}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-2">{children}</blockquote>,
+                            strong: ({children}) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                            em: ({children}) => <em className="italic">{children}</em>,
+                          }}
+                        >
                           {screenshot.markdown_content}
-                        </pre>
+                        </ReactMarkdown>
                       </div>
                     </div>
                   )}

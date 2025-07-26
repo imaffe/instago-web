@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-
-const imgInstagoIconTrans1 = "http://localhost:3845/assets/e2870fa454d290f95c1dce6dc86162b6edc36e28.png";
+import { Mail, Lock, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react'
 
 export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   
@@ -50,77 +50,120 @@ export function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-      <div className="bg-white overflow-clip relative rounded-[15px] w-full max-w-[621px] p-8">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
+      {/* Logo 独立显示在卡片上方 */}
+      <div className="flex justify-center mb-8">
+        <img 
+          src="/instago-icon-trans-1.png" 
+          alt="Instago Logo" 
+          className="w-32 h-32 object-contain transform hover:scale-105 transition-transform duration-200"
+        />
+      </div>
+      
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-8">
         {/* 标题 */}
         <div className="text-center mb-8">
-          <h2 className="font-['Inter',_sans-serif] font-normal text-[28px] text-black leading-[34px]">
-            <span>{`Log in to save your `}</span>
-            <span className="font-['Patika',_sans-serif] font-medium">Instas</span>
-          </h2>
-        </div>
-
-        {/* Instago 图标 */}
-        <div className="flex justify-center mb-8">
-          <div className="flex-none rotate-[333deg]">
-            <div
-              className="bg-center bg-cover bg-no-repeat size-[87px]"
-              style={{ backgroundImage: `url('${imgInstagoIconTrans1}')` }}
-            />
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Welcome to Instago
+          </h1>
+          <p className="text-gray-600">
+            {isSignUp ? 'Create your account to get started' : 'Sign in to save your screenshots'}
+          </p>
         </div>
 
         {/* 表单 */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email 输入框 */}
-          <div className="relative">
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="EMAIL"
-              className="w-full h-[74px] bg-neutral-300 rounded-[15px] px-6 font-['Cutive_Mono',_sans-serif] text-[18px] text-black text-center placeholder-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="Enter your email"
+                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+              />
+            </div>
           </div>
           
           {/* Password 输入框 */}
-          <div className="relative">
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="PASSWORD"
-              className="w-full h-[74px] bg-neutral-300 rounded-[15px] px-6 font-['Cutive_Mono',_sans-serif] text-[18px] text-black text-center placeholder-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Enter your password"
+                className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <Eye className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+            </div>
           </div>
           
           {/* 错误提示 */}
           {error && (
-            <p className="text-red-500 text-sm text-center">{error}</p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
           )}
           
           {/* 登录按钮 */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-[74px] bg-black text-white rounded-[15px] font-['Cutive_Mono',_sans-serif] text-[18px] hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
           >
-            {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Log in'}
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            ) : isSignUp ? (
+              <UserPlus className="w-5 h-5 mr-2" />
+            ) : (
+              <LogIn className="w-5 h-5 mr-2" />
+            )}
+            {loading ? 'Processing...' : isSignUp ? 'Create Account' : 'Sign In'}
           </button>
         </form>
         
         {/* 切换登录/注册 */}
         <div className="mt-6 text-center">
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="font-['Cutive_Mono',_sans-serif] text-[18px] text-[#006fff] hover:underline"
-          >
-            {isSignUp ? 'Already have an account?' : 'Create account'}
-          </button>
+          <p className="text-gray-600">
+            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp)
+                setError(null)
+              }}
+              className="text-blue-600 hover:text-blue-700 font-medium hover:underline"
+            >
+              {isSignUp ? 'Sign in' : 'Create account'}
+            </button>
+          </p>
         </div>
       </div>
     </div>
