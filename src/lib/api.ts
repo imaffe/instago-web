@@ -1,6 +1,22 @@
 import { supabase } from './supabase'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://instago-server-fbtibvhmga-uc.a.run.app/api/v1'
+// 动态获取API URL的函数
+function getApiUrl(): string {
+  // 在客户端，尝试从localStorage获取开发模式状态
+  if (typeof window !== 'undefined') {
+    try {
+      const isDevMode = localStorage.getItem('instago_dev_mode') === 'true'
+      if (isDevMode) {
+        return 'https://82540c0ac675.ngrok-free.app/api/v1'
+      }
+    } catch {
+      // 如果localStorage访问失败，使用默认值
+    }
+  }
+  
+  // 默认使用环境变量或生产URL
+  return process.env.NEXT_PUBLIC_API_URL || 'https://instago-server-fbtibvhmga-uc.a.run.app/api/v1'
+}
 
 async function getAuthHeaders() {
   const { data: { session } } = await supabase.auth.getSession()
@@ -35,6 +51,7 @@ export interface Screenshot {
   width?: number
   height?: number
   file_size?: number
+  process_status?: 'pending' | 'processed' | 'error'
 }
 
 export interface Query {
@@ -77,7 +94,7 @@ export const api = {
       
       console.log('Uploading screenshot with payload:', { ...payload, screenshotFileBlob: 'base64...' })
       
-      const response = await fetch(`${API_URL}/screenshot`, {
+      const response = await fetch(`${getApiUrl()}/screenshot`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -100,7 +117,7 @@ export const api = {
     list: async (skip: number = 0, limit: number = 20): Promise<Screenshot[]> => {
       try {
         const headers = await getAuthHeaders()
-        const url = `${API_URL}/screenshot-note?skip=${skip}&limit=${limit}`
+        const url = `${getApiUrl()}/screenshot-note?skip=${skip}&limit=${limit}`
         console.log('Fetching screenshots from:', url)
         
         const response = await fetch(url, {
@@ -152,7 +169,7 @@ export const api = {
 
     update: async (id: string, data: { user_note?: string }) => {
       const headers = await getAuthHeaders()
-      const response = await fetch(`${API_URL}/screenshot-note/${id}`, {
+      const response = await fetch(`${getApiUrl()}/screenshot-note/${id}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(data),
@@ -166,7 +183,7 @@ export const api = {
       const headers = await getAuthHeaders()
       console.log(`正在删除截图: ${id}`)
       
-      const response = await fetch(`${API_URL}/screenshot/${id}`, {
+      const response = await fetch(`${getApiUrl()}/screenshot/${id}`, {
         method: 'DELETE',
         headers,
       })
@@ -199,7 +216,7 @@ export const api = {
   search: {
     query: async (query: string): Promise<Screenshot[]> => {
       const headers = await getAuthHeaders()
-      const response = await fetch(`${API_URL}/query`, {
+      const response = await fetch(`${getApiUrl()}/query`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ query }),
@@ -211,7 +228,7 @@ export const api = {
 
     history: async (): Promise<Query[]> => {
       const headers = await getAuthHeaders()
-      const response = await fetch(`${API_URL}/query-history`, {
+      const response = await fetch(`${getApiUrl()}/query-history`, {
         headers,
       })
       

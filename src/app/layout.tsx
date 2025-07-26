@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "Test frontend for Instago API",
 };
 
+// 由于 layout.tsx 需要保持服务端组件，我们将在这里移除 DevModeInitializer
+
 export default function RootLayout({
   children,
 }: Readonly<{

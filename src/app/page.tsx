@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { AuthForm } from '@/components/AuthForm'
+import { useDevMode } from '@/lib/devMode'
 import { DeleteConfirmModal } from '@/components/DeleteConfirmModal'
 import { ErrorToast } from '@/components/ErrorToast'
 import { ScreenshotDetailModal } from '@/components/ScreenshotDetailModal'
@@ -32,7 +33,17 @@ import Link from 'next/link'
 
 export default function Home() {
   const { user, loading, signOut } = useAuth()
+  const { isDevMode, apiUrl } = useDevMode()
   const [authError, setAuthError] = useState<string | null>(null)
+
+  // 初始化开发模式工具
+  useEffect(() => {
+    // 动态导入开发模式管理器以确保控制台函数已注册
+    import('@/lib/devMode').then(() => {
+      // 开发工具已在导入时自动初始化
+      console.log('🚀 开发工具已初始化，可以在控制台使用 dev(), prod(), devStatus()')
+    })
+  }, [])
   const [screenshots, setScreenshots] = useState<Screenshot[]>([])
   const [screenshotLoading, setScreenshotLoading] = useState(true)
   const [screenshotError, setScreenshotError] = useState<string | null>(null)
@@ -332,79 +343,137 @@ export default function Home() {
 
     return (
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' : 'space-y-4'}>
-        {filteredScreenshots.map((screenshot) => (
-          <div 
-            key={screenshot.id} 
-            data-screenshot-card
-            className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer ${viewMode === 'list' ? 'flex' : ''}`}
-            onClick={(e) => handleViewScreenshot(screenshot, e.currentTarget)}
-          >
-            {screenshot.image_url && (
-              <div className={viewMode === 'list' ? 'w-32 h-24 flex-shrink-0' : 'w-full h-48'}>
-                <img
-                  src={screenshot.image_url}
-                  alt={screenshot.ai_title || '截图'}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-            
-            <div className={`p-4 ${viewMode === 'list' ? 'flex-1 flex items-center justify-between' : ''}`}>
-              <div className={viewMode === 'list' ? 'flex-1' : ''}>
-                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
-                  {screenshot.ai_title || screenshot.user_note || '无标题'}
-                </h3>
-                
-                {screenshot.ai_description && (
-                  <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                    {screenshot.ai_description}
-                  </p>
-                )}
-                
-                <p className="text-xs text-gray-500">
-                  {format(new Date(screenshot.created_at), 'yyyy年MM月dd日 HH:mm')}
-                </p>
-              </div>
+        {filteredScreenshots.map((screenshot) => {
+          const processStatus = screenshot.process_status || 'processed'
+          
+          return (
+            <div 
+              key={screenshot.id} 
+              data-screenshot-card
+              className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer relative ${viewMode === 'list' ? 'flex' : ''}`}
+              onClick={(e) => handleViewScreenshot(screenshot, e.currentTarget)}
+            >
+              {/* 处理状态指示器 */}
+              {processStatus !== 'processed' && (
+                <div className="absolute top-2 right-2 z-10">
+                  {processStatus === 'pending' && (
+                    <div className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
+                      <div className="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>处理中</span>
+                    </div>
+                  )}
+                  {processStatus === 'error' && (
+                    <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <span>失败</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 图片区域 */}
+              {screenshot.image_url && (
+                <div className={`relative ${viewMode === 'list' ? 'w-32 h-24 flex-shrink-0' : 'w-full h-48'}`}>
+                  <img
+                    src={screenshot.image_url}
+                    alt={screenshot.ai_title || '截图'}
+                    className={`w-full h-full object-cover ${processStatus === 'pending' ? 'opacity-75' : ''}`}
+                  />
+                  {/* pending 状态的覆盖层 */}
+                  {processStatus === 'pending' && (
+                    <div className="absolute inset-0 bg-blue-500 bg-opacity-10 flex items-center justify-center">
+                      <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+              )}
               
-              <div 
-                className={`flex items-center space-x-2 ${viewMode === 'list' ? 'flex-shrink-0 ml-4' : 'mt-4'}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    // 获取卡片容器的位置信息
-                    const cardElement = e.currentTarget.closest('[data-screenshot-card]') as HTMLElement
-                    handleViewScreenshot(screenshot, cardElement)
-                  }}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="查看详情"
+              <div className={`p-4 ${viewMode === 'list' ? 'flex-1 flex items-center justify-between' : ''}`}>
+                <div className={viewMode === 'list' ? 'flex-1' : ''}>
+                  <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
+                    {processStatus === 'processed' 
+                      ? (screenshot.ai_title || screenshot.user_note || '无标题')
+                      : (screenshot.user_note || '处理中的截图')
+                    }
+                  </h3>
+                  
+                  {/* 根据状态显示不同的描述 */}
+                  {processStatus === 'processed' && screenshot.ai_description && (
+                    <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                      {screenshot.ai_description}
+                    </p>
+                  )}
+                  
+                  {processStatus === 'pending' && (
+                    <p className="text-blue-600 text-sm mb-2 line-clamp-2">
+                      AI 正在分析中，请稍候...
+                    </p>
+                  )}
+                  
+                  {processStatus === 'error' && (
+                    <p className="text-red-600 text-sm mb-2 line-clamp-2">
+                      AI 分析失败，仅显示原始截图
+                    </p>
+                  )}
+                  
+                  <p className="text-xs text-gray-500">
+                    {format(new Date(screenshot.created_at), 'yyyy年MM月dd日 HH:mm')}
+                  </p>
+                </div>
+                
+                <div 
+                  className={`flex items-center space-x-2 ${viewMode === 'list' ? 'flex-shrink-0 ml-4' : 'mt-4'}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button
-                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                  title="下载"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-                <button
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="收藏"
-                >
-                  <Heart className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(screenshot.id)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="删除"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  {/* 查看详情按钮 - 所有状态都可用 */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const cardElement = e.currentTarget.closest('[data-screenshot-card]') as HTMLElement
+                      handleViewScreenshot(screenshot, cardElement)
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="查看详情"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  
+                  {/* 下载按钮 - 所有状态都可用 */}
+                  <button
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    title="下载"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  
+                  {/* 收藏按钮 - error 状态禁用，pending 状态可用但功能有限 */}
+                  <button
+                    className={`p-2 rounded-lg transition-colors ${
+                      processStatus === 'error' 
+                        ? 'text-gray-300 cursor-not-allowed' 
+                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                    }`}
+                    title={processStatus === 'error' ? '分析失败的截图无法收藏' : '收藏'}
+                    disabled={processStatus === 'error'}
+                  >
+                    <Heart className="w-4 h-4" />
+                  </button>
+                  
+                  {/* 删除按钮 - 所有状态都可用 */}
+                  <button
+                    onClick={() => handleDelete(screenshot.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="删除"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     )
   }
@@ -554,6 +623,14 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-gray-900">{getCategoryTitle()}</h1>
+              {/* 开发模式指示器 */}
+              {isDevMode && (
+                <div className="flex items-center space-x-2 bg-orange-100 border border-orange-200 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span>开发模式</span>
+                  <span className="text-xs opacity-75">({apiUrl.split('/')[2]})</span>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center space-x-4">

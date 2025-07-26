@@ -62,6 +62,9 @@ export function ScreenshotDetailModal({
 
   if (!isOpen || !screenshot) return null
 
+  // 获取处理状态
+  const processStatus = screenshot.process_status || 'processed'
+
   // 解析AI标签
   const aiTags: string[] = (() => {
     try {
@@ -171,72 +174,119 @@ export function ScreenshotDetailModal({
                   scrollbarWidth: 'thin',
                   scrollbarColor: '#cbd5e0 #f7fafc'
                 }}>
-                  {/* AI描述 */}
-                  {screenshot.ai_description && (
+                  {/* 根据处理状态显示不同内容 */}
+                  {processStatus === 'pending' && (
                     <div className="mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                        AI 描述
-                      </h3>
-                      <p className="text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-lg">
-                        {screenshot.ai_description}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* AI标签 */}
-                  {aiTags.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <Tag className="w-5 h-5 mr-2 text-purple-500" />
-                        智能标签
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {aiTags.map((tag: string, index: number) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800"
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                      <div className="text-center py-8">
+                        <div className="w-16 h-16 mx-auto mb-4 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">AI 分析处理中</h3>
+                        <p className="text-gray-600 mb-4">正在对您的截图进行智能分析，请稍候...</p>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <p className="text-sm text-blue-700">
+                            • 识别图片内容<br/>
+                            • 生成智能标签<br/>
+                            • 提取关键信息<br/>
+                            • 创建详细分析
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Markdown内容 */}
-                  {screenshot.markdown_content && (
+                  {processStatus === 'error' && (
                     <div className="mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
-                        详细分析
-                      </h3>
-                      <div className="prose prose-sm max-w-none bg-green-50 p-4 rounded-lg overflow-hidden">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            // 自定义组件样式
-                            h1: ({children}) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
-                            h2: ({children}) => <h2 className="text-lg font-semibold mt-3 mb-2 text-gray-900">{children}</h2>,
-                            h3: ({children}) => <h3 className="text-base font-medium mt-2 mb-1 text-gray-900">{children}</h3>,
-                            p: ({children}) => <p className="mb-2 leading-relaxed">{children}</p>,
-                            ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                            ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                            li: ({children}) => <li className="text-gray-700">{children}</li>,
-                            code: ({children}) => <code className="bg-gray-200 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
-                            pre: ({children}) => <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-sm">{children}</pre>,
-                            blockquote: ({children}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-2">{children}</blockquote>,
-                            strong: ({children}) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                            em: ({children}) => <em className="italic">{children}</em>,
-                          }}
-                        >
-                          {screenshot.markdown_content}
-                        </ReactMarkdown>
+                      <div className="text-center py-8">
+                        <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                          <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.676-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">AI 分析失败</h3>
+                        <p className="text-gray-600 mb-4">很抱歉，AI 分析过程中出现了错误</p>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                          <p className="text-sm text-red-700">
+                            可能的原因：<br/>
+                            • 图片格式不支持<br/>
+                            • 图片内容无法识别<br/>
+                            • 服务暂时不可用<br/>
+                            您仍可以查看原始截图和技术信息
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* 用户备注 */}
+                  {/* 只有在 processed 状态下才显示 AI 分析内容 */}
+                  {processStatus === 'processed' && (
+                    <>
+                      {/* AI描述 */}
+                      {screenshot.ai_description && (
+                        <div className="mb-6">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+                            AI 描述
+                          </h3>
+                          <p className="text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-lg">
+                            {screenshot.ai_description}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* AI标签 */}
+                      {aiTags.length > 0 && (
+                        <div className="mb-6">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                            <Tag className="w-5 h-5 mr-2 text-purple-500" />
+                            智能标签
+                          </h3>
+                          <div className="flex flex-wrap gap-2">
+                            {aiTags.map((tag: string, index: number) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Markdown内容 */}
+                      {screenshot.markdown_content && (
+                        <div className="mb-6">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                            <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                            详细分析
+                          </h3>
+                          <div className="prose prose-sm max-w-none bg-green-50 p-4 rounded-lg overflow-hidden">
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                // 自定义组件样式
+                                h1: ({children}) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
+                                h2: ({children}) => <h2 className="text-lg font-semibold mt-3 mb-2 text-gray-900">{children}</h2>,
+                                h3: ({children}) => <h3 className="text-base font-medium mt-2 mb-1 text-gray-900">{children}</h3>,
+                                p: ({children}) => <p className="mb-2 leading-relaxed">{children}</p>,
+                                ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                                ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                                li: ({children}) => <li className="text-gray-700">{children}</li>,
+                                code: ({children}) => <code className="bg-gray-200 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
+                                pre: ({children}) => <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-sm">{children}</pre>,
+                                blockquote: ({children}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 mb-2">{children}</blockquote>,
+                                strong: ({children}) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                                em: ({children}) => <em className="italic">{children}</em>,
+                              }}
+                            >
+                              {screenshot.markdown_content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* 用户备注 - 所有状态都显示 */}
                   {screenshot.user_note && (
                     <div className="mb-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
@@ -249,13 +299,24 @@ export function ScreenshotDetailModal({
                     </div>
                   )}
 
-                  {/* 技术信息 */}
+                  {/* 技术信息 - 所有状态都显示 */}
                   <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
                       <span className="w-2 h-2 bg-gray-500 rounded-full mr-3"></span>
                       技术信息
                     </h3>
                     <div className="space-y-2 text-sm bg-gray-50 p-4 rounded-lg">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">处理状态：</span>
+                        <span className={`text-sm px-2 py-1 rounded-full ${
+                          processStatus === 'processed' ? 'bg-green-100 text-green-800' :
+                          processStatus === 'pending' ? 'bg-blue-100 text-blue-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {processStatus === 'processed' ? '已处理' :
+                           processStatus === 'pending' ? '处理中' : '处理失败'}
+                        </span>
+                      </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">尺寸：</span>
                         <span className="text-gray-900">{screenshot.width} × {screenshot.height}</span>
