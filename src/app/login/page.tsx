@@ -209,35 +209,37 @@ function LoginForm() {
   // 如果已经启动Mac app，显示提示卡片
   if (macAppLaunched) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <div className="transform hover:scale-105 transition-transform duration-200">
-            <div
-              className="bg-center bg-cover bg-no-repeat w-32 h-32"
-              style={{ backgroundImage: `url('${imgInstagoIconTrans1}')` }}
-            />
-          </div>
-        </div>
-        
-        {/* 成功提示卡片 */}
-        <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-8">
-          <div className="text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-              </svg>
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <div className="flex flex-col items-center">
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <div className="transform hover:scale-105 transition-transform duration-200">
+              <div
+                className="bg-center bg-cover bg-no-repeat w-24 h-24"
+                style={{ backgroundImage: `url('${imgInstagoIconTrans1}')` }}
+              />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">登录成功！</h3>
-            <p className="text-gray-600 mb-6">
-              已成功启动Mac应用，您现在可以关闭此窗口了。
-            </p>
-            <button
-              onClick={() => window.close()}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              关闭窗口
-            </button>
+          </div>
+          
+          {/* 成功提示卡片 */}
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-8">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">登录成功！</h3>
+              <p className="text-gray-600 mb-6">
+                已成功启动Mac应用，您现在可以关闭此窗口了。
+              </p>
+              <button
+                onClick={() => window.close()}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+              >
+                关闭窗口
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -70,9 +70,11 @@ export default function Home() {
     isOpen: boolean
     screenshot: Screenshot | null
     cardPosition?: { x: number; y: number; width: number; height: number }
+    currentIndex: number
   }>({
     isOpen: false,
-    screenshot: null
+    screenshot: null,
+    currentIndex: 0
   })
 
   const categories = [
@@ -195,10 +197,14 @@ export default function Home() {
       }
     }
     
+    // 计算当前截图在过滤后列表中的索引
+    const currentIndex = filteredScreenshots.findIndex(s => s.id === screenshot.id)
+    
     setDetailModal({
       isOpen: true,
       screenshot,
-      cardPosition
+      cardPosition,
+      currentIndex: currentIndex >= 0 ? currentIndex : 0
     })
   }
 
@@ -206,8 +212,21 @@ export default function Home() {
   const closeDetailModal = () => {
     setDetailModal({
       isOpen: false,
-      screenshot: null
+      screenshot: null,
+      currentIndex: 0
     })
+  }
+
+  // 导航到指定索引的截图
+  const handleNavigateScreenshot = (newIndex: number) => {
+    if (newIndex >= 0 && newIndex < filteredScreenshots.length) {
+      const newScreenshot = filteredScreenshots[newIndex]
+      setDetailModal(prev => ({
+        ...prev,
+        screenshot: newScreenshot,
+        currentIndex: newIndex
+      }))
+    }
   }
 
   const runDiagnosis = async () => {
@@ -679,6 +698,9 @@ export default function Home() {
         isOpen={detailModal.isOpen}
         onClose={closeDetailModal}
         cardPosition={detailModal.cardPosition}
+        screenshots={filteredScreenshots}
+        currentIndex={detailModal.currentIndex}
+        onNavigate={handleNavigateScreenshot}
       />
     </div>
   )

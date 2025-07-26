@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { X, Calendar, Eye, Tag, Copy, ExternalLink } from 'lucide-react'
+import { X, Calendar, Eye, Tag, Copy, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { Screenshot } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
@@ -12,13 +12,19 @@ interface ScreenshotDetailModalProps {
   isOpen: boolean
   onClose: () => void
   cardPosition?: { x: number; y: number; width: number; height: number }
+  screenshots?: Screenshot[]
+  currentIndex?: number
+  onNavigate?: (index: number) => void
 }
 
 export function ScreenshotDetailModal({ 
   screenshot, 
   isOpen, 
   onClose, 
-  cardPosition 
+  cardPosition,
+  screenshots = [],
+  currentIndex = 0,
+  onNavigate
 }: ScreenshotDetailModalProps) {
   const [isAnimating, setIsAnimating] = useState(false)
   const [showContent, setShowContent] = useState(false)
@@ -43,16 +49,32 @@ export function ScreenshotDetailModal({
       if (e.key === 'Escape') onClose()
     }
     
+    const handleArrowKeys = (e: KeyboardEvent) => {
+      if (!isOpen || !onNavigate || screenshots.length <= 1) return
+      
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : screenshots.length - 1
+        onNavigate(prevIndex)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        const nextIndex = currentIndex < screenshots.length - 1 ? currentIndex + 1 : 0
+        onNavigate(nextIndex)
+      }
+    }
+    
     if (isOpen) {
       document.addEventListener('keydown', handleEscape)
+      document.addEventListener('keydown', handleArrowKeys)
       document.body.style.overflow = 'hidden'
     }
     
     return () => {
       document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('keydown', handleArrowKeys)
       document.body.style.overflow = 'unset'
     }
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, onNavigate, currentIndex, screenshots.length])
 
   const handleClose = () => {
     setShowContent(false)
@@ -60,7 +82,22 @@ export function ScreenshotDetailModal({
     setTimeout(onClose, 200) // 等待动画完成
   }
 
+  const handlePrevious = () => {
+    if (!onNavigate || screenshots.length <= 1) return
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : screenshots.length - 1
+    onNavigate(prevIndex)
+  }
+
+  const handleNext = () => {
+    if (!onNavigate || screenshots.length <= 1) return
+    const nextIndex = currentIndex < screenshots.length - 1 ? currentIndex + 1 : 0
+    onNavigate(nextIndex)
+  }
+
   if (!isOpen || !screenshot) return null
+
+  // 检查是否有多张截图以显示导航按钮
+  const hasMultipleScreenshots = screenshots.length > 1 && onNavigate
 
   // 获取处理状态
   const processStatus = screenshot.process_status || 'processed'
@@ -142,6 +179,32 @@ export function ScreenshotDetailModal({
         >
           <X className="w-6 h-6 text-gray-600" />
         </button>
+
+        {/* 左箭头按钮 */}
+        {hasMultipleScreenshots && (
+          <button
+            onClick={handlePrevious}
+            className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
+              showContent ? 'opacity-100' : 'opacity-0'
+            }`}
+            title={`上一张 (${currentIndex + 1}/${screenshots.length})`}
+          >
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
+        )}
+
+        {/* 右箭头按钮 */}
+        {hasMultipleScreenshots && (
+          <button
+            onClick={handleNext}
+            className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 ${
+              showContent ? 'opacity-100' : 'opacity-0'
+            }`}
+            title={`下一张 (${currentIndex + 1}/${screenshots.length})`}
+          >
+            <ChevronRight className="w-6 h-6 text-gray-600" />
+          </button>
+        )}
 
         {/* 内容区域 */}
         <div className="h-full overflow-auto lg:overflow-hidden rounded-xl">
