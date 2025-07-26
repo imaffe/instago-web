@@ -15,6 +15,8 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [callbackProcessed, setCallbackProcessed] = useState(false)
+  const [macAppLaunched, setMacAppLaunched] = useState(false)
   
   const { signIn, signUp, user } = useAuth()
   const router = useRouter()
@@ -90,6 +92,7 @@ function LoginForm() {
       
       // 重定向到Mac App
       console.log('About to redirect to Mac app...')
+      setMacAppLaunched(true)
       window.location.href = redirectURL
     } catch (error) {
       console.error('Error handling Mac app callback:', error)
@@ -97,12 +100,13 @@ function LoginForm() {
     }
   }, [user, callbackURL])
 
-  // 如果用户已经登录且有callback，直接处理回调
+  // 如果用户已经登录且有callback，自动处理回调
   useEffect(() => {
-    if (user && callbackURL) {
+    if (user && callbackURL && !loading && !callbackProcessed) {
+      setCallbackProcessed(true)
       handleLoginSuccess()
     }
-  }, [user, callbackURL, handleLoginSuccess])
+  }, [user, callbackURL, handleLoginSuccess, loading, callbackProcessed])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -131,9 +135,10 @@ function LoginForm() {
       
       console.log('Auth successful!')
       
-      // 如果有callback，立即处理Mac app回调
-      if (callbackURL) {
+      // 如果有callback且未处理过，立即处理Mac app回调
+      if (callbackURL && !callbackProcessed) {
         console.log('Callback found, processing Mac app callback...')
+        setCallbackProcessed(true)
         
         try {
           // 直接获取当前session和token
@@ -178,6 +183,7 @@ function LoginForm() {
           console.log('About to redirect to Mac app...')
           
           // 重定向到Mac App
+          setMacAppLaunched(true)
           window.location.href = redirectURL
           
         } catch (error) {
@@ -196,6 +202,46 @@ function LoginForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+
+
+  // 如果已经启动Mac app，显示提示卡片
+  if (macAppLaunched) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <div className="transform hover:scale-105 transition-transform duration-200">
+            <div
+              className="bg-center bg-cover bg-no-repeat w-32 h-32"
+              style={{ backgroundImage: `url('${imgInstagoIconTrans1}')` }}
+            />
+          </div>
+        </div>
+        
+        {/* 成功提示卡片 */}
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-8">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">登录成功！</h3>
+            <p className="text-gray-600 mb-6">
+              已成功启动Mac应用，您现在可以关闭此窗口了。
+            </p>
+            <button
+              onClick={() => window.close()}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              关闭窗口
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
