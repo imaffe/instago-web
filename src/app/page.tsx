@@ -25,7 +25,6 @@ import {
   Filter,
   Eye,
   Download,
-  Heart,
   Folder,
   BookOpen
 } from 'lucide-react'
@@ -79,7 +78,6 @@ export default function Home() {
   const categories = [
     { id: 'all', name: 'All Instas', icon: Images, count: screenshots.length },
     { id: 'anki', name: 'Anki Cards', icon: BookOpen, count: screenshots.filter(s => s.ai_title || s.ai_description || s.markdown_content).length },
-    { id: 'favorites', name: 'Favorites', icon: Star, count: 0 },
     { id: 'recent', name: 'Recents', icon: Clock, count: 0 },
     { id: 'trash', name: 'Deleted', icon: Trash2, count: 0 },
   ]
@@ -379,14 +377,8 @@ export default function Home() {
                   <img
                     src={screenshot.image_url}
                     alt={screenshot.ai_title || '截图'}
-                    className={`w-full h-full object-cover ${processStatus === 'pending' ? 'opacity-75' : ''}`}
+                    className="w-full h-full object-cover"
                   />
-                  {/* pending 状态的覆盖层 */}
-                  {processStatus === 'pending' && (
-                    <div className="absolute inset-0 bg-blue-500 bg-opacity-10 flex items-center justify-center">
-                      <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
                 </div>
               )}
               
@@ -448,18 +440,7 @@ export default function Home() {
                     <Download className="w-4 h-4" />
                   </button>
                   
-                  {/* 收藏按钮 - error 状态禁用，pending 状态可用但功能有限 */}
-                  <button
-                    className={`p-2 rounded-lg transition-colors ${
-                      processStatus === 'error' 
-                        ? 'text-gray-300 cursor-not-allowed' 
-                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                    }`}
-                    title={processStatus === 'error' ? '分析失败的截图无法收藏' : '收藏'}
-                    disabled={processStatus === 'error'}
-                  >
-                    <Heart className="w-4 h-4" />
-                  </button>
+
                   
                   {/* 删除按钮 - 所有状态都可用 */}
                   <button

@@ -36,6 +36,11 @@ async function getAuthHeaders() {
   }
 }
 
+export interface QuickLinkDict {
+  type: 'direct' | 'search_str'
+  content: string
+}
+
 export interface Screenshot {
   id: string
   user_id: string
@@ -52,6 +57,7 @@ export interface Screenshot {
   height?: number
   file_size?: number
   process_status?: 'pending' | 'processed' | 'error'
+  quick_link?: QuickLinkDict
 }
 
 export interface Query {

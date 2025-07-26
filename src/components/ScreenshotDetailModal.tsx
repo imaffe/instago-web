@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { X, Calendar, Eye, Tag } from 'lucide-react'
+import { X, Calendar, Eye, Tag, Copy, ExternalLink } from 'lucide-react'
 import { format } from 'date-fns'
 import { Screenshot } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
@@ -83,6 +83,17 @@ export function ScreenshotDetailModal({
     }
   })()
 
+  // 复制到剪贴板的函数
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      // 这里可以添加一个成功提示
+      console.log('已复制到剪贴板')
+    } catch (err) {
+      console.error('复制失败:', err)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* 背景遮罩 */}
@@ -133,11 +144,11 @@ export function ScreenshotDetailModal({
         </button>
 
         {/* 内容区域 */}
-        <div className="h-full overflow-auto lg:overflow-hidden">
+        <div className="h-full overflow-auto lg:overflow-hidden rounded-xl">
           {showContent ? (
             <div className="h-full flex flex-col lg:flex-row min-h-0">
               {/* 图片区域 */}
-              <div className="flex-1 bg-gray-50 flex items-center justify-center p-4 lg:p-8 min-h-0">
+              <div className="flex-1 bg-gray-50 flex items-center justify-center p-4 lg:p-8 min-h-0 rounded-t-xl lg:rounded-t-xl lg:rounded-l-xl lg:rounded-tr-none">
                 <div className="max-w-full max-h-full flex items-center justify-center">
                   <img
                     src={screenshot.image_url}
@@ -148,7 +159,7 @@ export function ScreenshotDetailModal({
               </div>
 
               {/* 信息面板 */}
-              <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-500 min-h-0 lg:max-h-full">
+              <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-500 min-h-0 lg:max-h-full rounded-b-xl lg:rounded-b-xl lg:rounded-r-xl lg:rounded-bl-none">
                 {/* 头部信息 */}
                 <div className="flex-shrink-0 p-4 lg:p-6 border-b border-gray-200">
                   <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-2 line-clamp-2">
@@ -219,6 +230,19 @@ export function ScreenshotDetailModal({
                   {/* 只有在 processed 状态下才显示 AI 分析内容 */}
                   {processStatus === 'processed' && (
                     <>
+                      {/* 原文直达按钮 - 放在顶部居中 */}
+                      {screenshot.quick_link && screenshot.quick_link.type === 'direct' && (
+                        <div className="mb-6 text-center">
+                          <button
+                            onClick={() => window.open(screenshot.quick_link?.content, '_blank')}
+                            className="inline-flex items-center px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 font-medium"
+                          >
+                            <ExternalLink className="w-5 h-5 mr-2" />
+                            原文直达
+                          </button>
+                        </div>
+                      )}
+
                       {/* AI描述 */}
                       {screenshot.ai_description && (
                         <div className="mb-6">
@@ -248,6 +272,29 @@ export function ScreenshotDetailModal({
                                 {tag}
                               </span>
                             ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 搜索关键词 */}
+                      {screenshot.quick_link && screenshot.quick_link.type === 'search_str' && (
+                        <div className="mb-6">
+                          <div className="bg-orange-50 p-4 rounded-lg">
+                            <div className="space-y-3">
+                              <div className="text-sm text-gray-600 mb-2">搜索关键词：</div>
+                              <div className="flex items-center justify-between bg-white p-3 rounded-lg border">
+                                <span className="text-gray-900 font-mono text-sm flex-1 mr-3">
+                                  {screenshot.quick_link.content}
+                                </span>
+                                <button
+                                  onClick={() => copyToClipboard(screenshot.quick_link?.content || '')}
+                                  className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors duration-200"
+                                  title="复制到剪贴板"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
