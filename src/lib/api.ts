@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { format } from 'date-fns'
 
 // 动态获取API URL的函数
 function getApiUrl(): string {
@@ -7,6 +8,7 @@ function getApiUrl(): string {
     try {
       const isDevMode = localStorage.getItem('instago_dev_mode') === 'true'
       if (isDevMode) {
+        // 这是你的ngrok开发服务器地址
         return 'https://82540c0ac675.ngrok-free.app/api/v1'
       }
     } catch {
@@ -18,15 +20,51 @@ function getApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || 'https://instago-server-fbtibvhmga-uc.a.run.app/api/v1'
 }
 
+// 安全的日期格式化函数
+export const formatDateSafe = (dateString: string, formatString: string = 'yyyy年MM月dd日 HH:mm') => {
+  try {
+    if (!dateString || dateString.trim() === '') {
+      return '日期未知'
+    }
+    
+    // 尝试不同的日期格式
+    let date = new Date(dateString)
+    
+    // 如果第一次解析失败，尝试其他格式
+    if (isNaN(date.getTime())) {
+      // 尝试 ISO 格式 (YYYY-MM-DDTHH:mm:ss.sssZ)
+      if (typeof dateString === 'string' && dateString.includes('T')) {
+        date = new Date(dateString.replace(/\.\d{3}Z$/, 'Z'))
+      }
+      
+      // 如果还是失败，尝试解析为时间戳
+      if (isNaN(date.getTime())) {
+        const timestamp = parseInt(dateString)
+        if (!isNaN(timestamp)) {
+          // 检查是否是秒级时间戳（10位）还是毫秒级时间戳（13位）
+          date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp)
+        }
+      }
+    }
+    
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date format:', dateString)
+      return '日期格式错误'
+    }
+    
+    return format(date, formatString)
+  } catch (error) {
+    console.warn('Date formatting error:', error, 'for date:', dateString)
+    return '日期解析失败'
+  }
+}
+
 async function getAuthHeaders() {
   const { data: { session } } = await supabase.auth.getSession()
   
   if (!session?.access_token) {
-    console.error('No access token found in session')
     throw new Error('Not authenticated')
   }
-  
-  console.log('Using access token:', session.access_token.substring(0, 20) + '...')
   
   return {
     'Authorization': `Bearer ${session.access_token}`,
@@ -34,6 +72,36 @@ async function getAuthHeaders() {
     'ngrok-skip-browser-warning': 'true', // 跳过ngrok浏览器警告
     'User-Agent': 'InstagramApp/1.0', // 模拟非浏览器请求
   }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
+    headers: {
+      ...headers,
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`API request to ${path} failed:`, response.status, errorText);
+    throw new Error(`API Error: ${response.status} ${errorText}`);
+  }
+
+  // 对于 204 No Content，我们可能不应该尝试解析 JSON
+  if (response.status === 204) {
+    return undefined as T; // 或者 return null as T, 取决于你的API消费者如何处理
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return response.json();
+  }
+  
+  // 对于非JSON响应（例如，DELETE可能返回文本），我们将其作为文本处理
+  return response.text() as unknown as T;
 }
 
 export interface QuickLinkDict {
@@ -60,186 +128,41 @@ export interface Screenshot {
   quick_link?: QuickLinkDict
 }
 
-export interface Query {
-  id: string
-  user_id: string
-  query: string
-  created_at: string
+export interface QueryResult {
+  screenshot: Screenshot
+  score: number
 }
 
+// 安全的日期格式化函数
 export const api = {
   screenshots: {
-    upload: async (file: File, tags: string = '') => {
-      // Convert file to base64
-      const reader = new FileReader()
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const base64String = reader.result as string
-          // Remove data:image/xxx;base64, prefix
-          const base64Data = base64String.split(',')[1]
-          resolve(base64Data)
-        }
-        reader.onerror = reject
-      })
-      reader.readAsDataURL(file)
-      
-      const base64Data = await base64Promise
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session?.access_token) {
-        throw new Error('Not authenticated')
-      }
-      
-      const payload = {
-        screenshotTimestamp: Math.floor(Date.now() / 1000), // Current Unix timestamp
-        screenshotAppName: "Web Upload", // Default app name for web uploads
-        screenshotTags: tags.substring(0, 16), // Max 16 chars as per API requirement
-        screenshotFileBlob: base64Data
-      }
-      
-      console.log('Uploading screenshot with payload:', { ...payload, screenshotFileBlob: 'base64...' })
-      
-      const response = await fetch(`${getApiUrl()}/screenshot`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-          'User-Agent': 'InstagramApp/1.0',
-        },
-        body: JSON.stringify(payload),
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.text()
-        console.error('Upload failed:', response.status, errorData)
-        throw new Error(`Failed to upload screenshot: ${response.status}`)
-      }
-      
-      return response.json()
+    list: async (): Promise<Screenshot[]> => {
+      return request<Screenshot[]>('/screenshot-note?skip=0&limit=100');
     },
 
-    list: async (skip: number = 0, limit: number = 20): Promise<Screenshot[]> => {
-      try {
-        const headers = await getAuthHeaders()
-        const url = `${getApiUrl()}/screenshot-note?skip=${skip}&limit=${limit}`
-        console.log('Fetching screenshots from:', url)
-        
-        const response = await fetch(url, {
-          headers,
-        })
-        
-        console.log('Screenshot API response status:', response.status)
-        
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('Screenshot API error:', response.status, errorText)
-          console.error('Response headers:', Object.fromEntries(response.headers.entries()))
-          
-          // 如果是500错误，返回空数组而不是抛出错误
-          if (response.status === 500) {
-            console.warn('Backend returned 500 error, returning empty screenshots array')
-            return []
-          }
-          
-          throw new Error(`Failed to fetch screenshots: ${response.status} ${errorText}`)
-        }
-        
-        // 检查响应内容类型
-        const contentType = response.headers.get('content-type')
-        console.log('Response content-type:', contentType)
-        
-        // 如果不是JSON，记录完整响应并返回空数组
-        if (!contentType || !contentType.includes('application/json')) {
-          const responseText = await response.text()
-          console.error('❌ Response is not JSON:', {
-            status: response.status,
-            contentType,
-            url: response.url,
-            responsePreview: responseText.substring(0, 200) + '...'
-          })
-          console.warn('Returning empty array due to non-JSON response')
-          return []
-        }
-        
-        const data = await response.json()
-        console.log('Screenshots fetched successfully:', data)
-        return data
-      } catch (error) {
-        console.error('Error in screenshot list API call:', error)
-        // 返回空数组而不是抛出错误，让界面能正常显示
-        return []
-      }
+    get: async (id: string): Promise<Screenshot> => {
+      return request<Screenshot>(`/screenshot-note/${id}`);
     },
 
     update: async (id: string, data: { user_note?: string }) => {
-      const headers = await getAuthHeaders()
-      const response = await fetch(`${getApiUrl()}/screenshot-note/${id}`, {
+      return request<Screenshot>(`/screenshot-note/${id}`, {
         method: 'PUT',
-        headers,
         body: JSON.stringify(data),
-      })
-      
-      if (!response.ok) throw new Error('Failed to update screenshot')
-      return response.json()
+      });
     },
 
-    delete: async (id: string) => {
-      const headers = await getAuthHeaders()
-      console.log(`正在删除截图: ${id}`)
-      
-      const response = await fetch(`${getApiUrl()}/screenshot/${id}`, {
+    delete: async (id: string): Promise<{ success: boolean }> => {
+      await request<void>(`/screenshot/${id}`, {
         method: 'DELETE',
-        headers,
-      })
-      
-      console.log(`删除请求响应状态: ${response.status}`)
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('删除截图失败:', response.status, errorText)
-        throw new Error(`删除截图失败: ${response.status} - ${errorText}`)
-      }
-      
-      // 204 No Content 状态码表示删除成功，但没有响应内容
-      if (response.status === 204) {
-        console.log('截图删除成功 (204 No Content)')
-        return { success: true }
-      }
-      
-      // 如果有其他成功状态码且有内容，尝试解析 JSON
-      try {
-        return await response.json()
-      } catch (e) {
-        // 如果解析失败但状态码表示成功，返回成功标识
-        console.log('删除成功，但响应为空或无效 JSON')
-        return { success: true }
-      }
+      });
+      return { success: true };
     },
   },
 
-  search: {
-    query: async (query: string): Promise<Screenshot[]> => {
-      const headers = await getAuthHeaders()
-      const response = await fetch(`${getApiUrl()}/query`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ query }),
-      })
-      
-      if (!response.ok) throw new Error('Failed to search screenshots')
-      return response.json()
-    },
-
-    history: async (): Promise<Query[]> => {
-      const headers = await getAuthHeaders()
-      const response = await fetch(`${getApiUrl()}/query-history`, {
-        headers,
-      })
-      
-      if (!response.ok) throw new Error('Failed to fetch query history')
-      return response.json()
-    },
+  search: async (query: string): Promise<QueryResult[]> => {
+    return request<QueryResult[]>(`/query`, {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    });
   },
-}
+};

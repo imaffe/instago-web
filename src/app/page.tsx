@@ -8,7 +8,7 @@ import { DeleteConfirmModal } from '@/components/DeleteConfirmModal'
 import { ErrorToast } from '@/components/ErrorToast'
 import { ScreenshotDetailModal } from '@/components/ScreenshotDetailModal'
 import { AnkiCardViewer } from '@/components/AnkiCardViewer'
-import { api, Screenshot } from '@/lib/api'
+import { api, Screenshot, formatDateSafe, QueryResult } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { 
@@ -29,6 +29,7 @@ import {
   BookOpen
 } from 'lucide-react'
 import Link from 'next/link'
+import { debounce } from 'lodash'
 
 export default function Home() {
   const { user, loading, signOut } = useAuth()
@@ -46,8 +47,14 @@ export default function Home() {
   const [screenshots, setScreenshots] = useState<Screenshot[]>([])
   const [screenshotLoading, setScreenshotLoading] = useState(true)
   const [screenshotError, setScreenshotError] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState('all')
+  
+  // 搜索相关状态
   const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<Screenshot[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+
+  const [selectedCategory, setSelectedCategory] = useState('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   
@@ -114,6 +121,43 @@ export default function Home() {
       setScreenshotLoading(false)
     }
   }
+
+  // 使用防抖函数来避免过于频繁的 API 调用
+  const debouncedSearch = useRef(
+    debounce(async (query: string) => {
+      if (query.trim() === '') {
+        setSearchResults([])
+        setIsSearching(false)
+        return
+      }
+
+      console.log(`🔍 Searching for: ${query}`)
+      setIsSearching(true)
+      setSearchError(null)
+
+      try {
+        const results = await api.search(query)
+        console.log(`✅ Found ${results.length} search results`)
+        console.log('🔍 Search results data structure:', results.slice(0, 2)) // 只打印前2个结果来检查数据结构
+        
+        // 从QueryResult中提取Screenshot对象
+        const screenshots = results.map(result => result.screenshot)
+        setSearchResults(screenshots)
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown search error'
+        console.error('❌ Search failed:', errorMessage)
+        setSearchError(errorMessage)
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300) // 300ms 延迟
+  ).current
+
+  useEffect(() => {
+    debouncedSearch(searchTerm)
+  }, [searchTerm, debouncedSearch])
+
 
   useEffect(() => {
     if (user) {
@@ -197,8 +241,10 @@ export default function Home() {
       }
     }
     
+    // 当前显示的列表
+    const currentList = searchTerm ? searchResults : screenshots
     // 计算当前截图在过滤后列表中的索引
-    const currentIndex = filteredScreenshots.findIndex(s => s.id === screenshot.id)
+    const currentIndex = currentList.findIndex(s => s.id === screenshot.id)
     
     setDetailModal({
       isOpen: true,
@@ -219,8 +265,9 @@ export default function Home() {
 
   // 导航到指定索引的截图
   const handleNavigateScreenshot = (newIndex: number) => {
-    if (newIndex >= 0 && newIndex < filteredScreenshots.length) {
-      const newScreenshot = filteredScreenshots[newIndex]
+    const currentList = searchTerm ? searchResults : screenshots
+    if (newIndex >= 0 && newIndex < currentList.length) {
+      const newScreenshot = currentList[newIndex]
       setDetailModal(prev => ({
         ...prev,
         screenshot: newScreenshot,
@@ -274,13 +321,7 @@ export default function Home() {
     return text.substring(0, maxLength) + '...'
   }
 
-  const filteredScreenshots = screenshots.filter(screenshot => {
-    if (searchTerm) {
-      return (screenshot.ai_title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-             (screenshot.ai_description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    }
-    return true
-  })
+  const displayedScreenshots = searchTerm ? searchResults : screenshots
 
   // 根据选择的分类获取标题
   const getCategoryTitle = () => {
@@ -292,6 +333,26 @@ export default function Home() {
   const renderMainContent = () => {
     if (selectedCategory === 'anki') {
       return <AnkiCardViewer />
+    }
+
+    // 搜索时的加载状态
+    if (isSearching) {
+      return (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="text-lg text-gray-600">Searching...</div>
+        </div>
+      )
+    }
+
+    // 搜索错误
+    if (searchError) {
+      return (
+        <div className="text-center py-12">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Search Error</h3>
+          <p className="text-gray-600 mb-4">{searchError}</p>
+        </div>
+      )
     }
 
     // 原有的截图列表逻辑
@@ -337,31 +398,65 @@ export default function Home() {
       )
     }
 
-    if (filteredScreenshots.length === 0) {
+    if (displayedScreenshots.length === 0) {
       return (
         <div className="text-center py-12">
           <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
             <Images className="w-12 h-12 text-gray-400" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No screenshots yet</h3>
-          <p className="text-gray-600 mb-6">Your screenshots will appear here once available</p>
-          <button
-            onClick={fetchScreenshots}
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Refresh</span>
-          </button>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            {searchTerm ? 'No results found' : 'No screenshots yet'}
+          </h3>
+          <p className="text-gray-600 mb-6">
+            {searchTerm 
+              ? `Your search for "${searchTerm}" did not return any results.`
+              : 'Your screenshots will appear here once available'
+            }
+          </p>
+          {!searchTerm && (
+            <button
+              onClick={fetchScreenshots}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh</span>
+            </button>
+          )}
         </div>
       )
     }
 
     return (
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' : 'space-y-4'}>
-        {filteredScreenshots.map((screenshot) => {
+        {displayedScreenshots.map((screenshot) => {
           const processStatus = screenshot.process_status || 'processed'
+          
+          // 安全获取标题，优先级：ai_title > user_note > 默认
+          const getTitle = () => {
+            if (screenshot.ai_title && screenshot.ai_title.trim()) {
+              return screenshot.ai_title
+            }
+            if (screenshot.user_note && screenshot.user_note.trim()) {
+              return screenshot.user_note
+            }
+            return '未命名截图'
+          }
+          
+          // 安全获取描述
+          const getDescription = () => {
+            if (processStatus === 'processed' && screenshot.ai_description && screenshot.ai_description.trim()) {
+              return screenshot.ai_description
+            }
+            if (processStatus === 'pending') {
+              return 'AI 正在分析中，请稍候...'
+            }
+            if (processStatus === 'error') {
+              return 'AI 分析失败，仅显示原始截图'
+            }
+            return null
+          }
           
           return (
             <div 
@@ -404,33 +499,18 @@ export default function Home() {
               <div className={`p-4 ${viewMode === 'list' ? 'flex-1 flex items-center justify-between' : ''}`}>
                 <div className={viewMode === 'list' ? 'flex-1' : ''}>
                   <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
-                    {processStatus === 'processed' 
-                      ? (screenshot.ai_title || screenshot.user_note || '无标题')
-                      : (screenshot.user_note || '处理中的截图')
-                    }
+                    {getTitle()}
                   </h3>
                   
                   {/* 根据状态显示不同的描述 */}
-                  {processStatus === 'processed' && screenshot.ai_description && (
+                  {getDescription() && (
                     <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                      {screenshot.ai_description}
-                    </p>
-                  )}
-                  
-                  {processStatus === 'pending' && (
-                    <p className="text-blue-600 text-sm mb-2 line-clamp-2">
-                      AI 正在分析中，请稍候...
-                    </p>
-                  )}
-                  
-                  {processStatus === 'error' && (
-                    <p className="text-red-600 text-sm mb-2 line-clamp-2">
-                      AI 分析失败，仅显示原始截图
+                      {getDescription()}
                     </p>
                   )}
                   
                   <p className="text-xs text-gray-500">
-                    {format(new Date(screenshot.created_at), 'yyyy年MM月dd日 HH:mm')}
+                    {formatDateSafe(screenshot.created_at)}
                   </p>
                 </div>
                 
@@ -698,7 +778,7 @@ export default function Home() {
         isOpen={detailModal.isOpen}
         onClose={closeDetailModal}
         cardPosition={detailModal.cardPosition}
-        screenshots={filteredScreenshots}
+        screenshots={displayedScreenshots}
         currentIndex={detailModal.currentIndex}
         onNavigate={handleNavigateScreenshot}
       />

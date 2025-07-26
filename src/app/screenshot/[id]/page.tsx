@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
-import { api, Screenshot } from '@/lib/api'
+import { api, Screenshot, formatDateSafe } from '@/lib/api'
 import { format } from 'date-fns'
 import { ArrowLeft, Edit2, Save, X } from 'lucide-react'
 import Link from 'next/link'
@@ -163,7 +163,7 @@ export default function ScreenshotDetailPage() {
             </div>
 
             <p className="text-gray-500 mb-4">
-              Created: {format(new Date(screenshot.created_at), 'PPp')}
+              Created: {formatDateSafe(screenshot.created_at, 'PPp')}
             </p>
 
             {screenshot.ai_description && (

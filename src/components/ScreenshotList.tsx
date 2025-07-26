@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, Screenshot } from '@/lib/api'
+import { api, Screenshot, formatDateSafe } from '@/lib/api'
 import { format } from 'date-fns'
 import { Trash2, Edit, Eye } from 'lucide-react'
 import Link from 'next/link'
@@ -91,7 +91,7 @@ export function ScreenshotList() {
               )}
               
               <p className="text-xs text-gray-500 mb-4">
-                {format(new Date(screenshot.created_at), 'PPp')}
+                {formatDateSafe(screenshot.created_at, 'PPp')}
               </p>
               
               <div className="flex justify-between items-center">

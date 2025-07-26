@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { X, Calendar, Eye, Tag, Copy, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
-import { Screenshot } from '@/lib/api'
+import { Screenshot, formatDateSafe } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -232,7 +232,7 @@ export function ScreenshotDetailModal({
                   <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-sm text-gray-500 mb-4">
                     <div className="flex items-center space-x-1">
                       <Calendar className="w-4 h-4" />
-                      <span>{format(new Date(screenshot.created_at), 'yyyy年MM月dd日')}</span>
+                      <span>{formatDateSafe(screenshot.created_at, 'yyyy年MM月dd日')}</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Eye className="w-4 h-4" />
@@ -442,7 +442,7 @@ export function ScreenshotDetailModal({
                       <div className="flex justify-between">
                         <span className="text-gray-500">创建时间：</span>
                         <span className="text-gray-900">
-                          {format(new Date(screenshot.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                          {formatDateSafe(screenshot.created_at, 'yyyy-MM-dd HH:mm:ss')}
                         </span>
                       </div>
                     </div>

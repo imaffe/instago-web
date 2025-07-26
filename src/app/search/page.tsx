@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
-import { api, Screenshot, Query } from '@/lib/api'
+import { api, Screenshot, formatDateSafe, QueryResult } from '@/lib/api'
 import { format } from 'date-fns'
 import { Search, Clock, Eye } from 'lucide-react'
 import Link from 'next/link'
@@ -16,8 +16,6 @@ export default function SearchPage() {
   const [results, setResults] = useState<Screenshot[]>([])
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showHistory, setShowHistory] = useState(false)
-  const [history, setHistory] = useState<Query[]>([])
 
   if (!user) {
     router.push('/')
@@ -30,31 +28,17 @@ export default function SearchPage() {
 
     setSearching(true)
     setError(null)
-    setShowHistory(false)
 
     try {
-      const data = await api.search.query(query)
-      setResults(data)
+      const data = await api.search(query)
+      // 从QueryResult中提取Screenshot对象
+      const screenshots = data.map(result => result.screenshot)
+      setResults(screenshots)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to search screenshots')
     } finally {
       setSearching(false)
     }
-  }
-
-  const loadHistory = async () => {
-    try {
-      const data = await api.search.history()
-      setHistory(data)
-      setShowHistory(true)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load search history')
-    }
-  }
-
-  const searchFromHistory = (historicalQuery: string) => {
-    setQuery(historicalQuery)
-    setShowHistory(false)
   }
 
   return (
@@ -81,14 +65,6 @@ export default function SearchPage() {
             </button>
           </div>
           
-          <button
-            type="button"
-            onClick={loadHistory}
-            className="mt-2 text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-          >
-            <Clock size={16} />
-            <span>View search history</span>
-          </button>
         </form>
 
         {error && (
@@ -97,26 +73,6 @@ export default function SearchPage() {
 
         {searching && (
           <p className="text-center text-gray-500">Searching...</p>
-        )}
-
-        {showHistory && history.length > 0 && (
-          <div className="max-w-2xl mx-auto mb-8">
-            <h2 className="text-xl font-semibold mb-4">Recent Searches</h2>
-            <div className="space-y-2">
-              {history.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => searchFromHistory(item.query)}
-                  className="w-full text-left p-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
-                >
-                  <p className="font-medium">{item.query}</p>
-                  <p className="text-xs text-gray-500">
-                    {format(new Date(item.created_at), 'PPp')}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
         )}
 
         {results.length > 0 && (
@@ -148,7 +104,7 @@ export default function SearchPage() {
                     )}
                     
                     <p className="text-xs text-gray-500 mb-4">
-                      {format(new Date(screenshot.created_at), 'PPp')}
+                      {formatDateSafe(screenshot.created_at, 'PPp')}
                     </p>
                     
                     <Link
