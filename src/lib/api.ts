@@ -24,12 +24,17 @@ export interface Screenshot {
   created_at: string
   updated_at: string
   image_url: string
+  process_status: 'pending' | 'processed' | 'failed'
   thumbnail_url?: string
   user_note?: string
   ai_title?: string
   ai_description?: string
   ai_tags?: string[]
   markdown_content?: string
+  quick_link?: {
+    type: 'direct' | 'search_str'
+    content: string
+  }
   width?: number
   height?: number
   file_size?: number
@@ -40,6 +45,20 @@ export interface Query {
   user_id: string
   query: string
   created_at: string
+}
+
+export interface QueryResult {
+  screenshot: Screenshot
+  score: number
+}
+
+export interface RAGQueryResponse {
+  answer: string
+  confidence: number
+  sources_used: number
+  model_used?: string
+  results: QueryResult[]
+  total_results: number
 }
 
 export const api = {
@@ -90,12 +109,15 @@ export const api = {
         throw new Error(`Failed to upload screenshot: ${response.status}`)
       }
       
-      return response.json()
+      const result = await response.json()
+      // The new API returns just a status, not the full screenshot
+      return result
     },
 
     list: async (): Promise<Screenshot[]> => {
       const headers = await getAuthHeaders()
       const response = await fetch(`${API_URL}/screenshot-note`, {
+        method: 'GET',
         headers,
       })
       
@@ -128,12 +150,12 @@ export const api = {
   },
 
   search: {
-    query: async (query: string): Promise<Screenshot[]> => {
+    query: async (query: string, limit: number = 3): Promise<QueryResult[]> => {
       const headers = await getAuthHeaders()
       const response = await fetch(`${API_URL}/query`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, limit }),
       })
       
       if (!response.ok) throw new Error('Failed to search screenshots')

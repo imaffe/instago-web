@@ -6,8 +6,29 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
 import { api, Screenshot } from '@/lib/api'
 import { format } from 'date-fns'
-import { ArrowLeft, Edit2, Save, X } from 'lucide-react'
+import { ArrowLeft, Edit2, Save, X, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+
+// Simple markdown to HTML converter
+function renderMarkdown(markdown: string): string {
+  return markdown
+    // Headers
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    // Links
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-blue-600 hover:underline">$1</a>')
+    // Line breaks
+    .replace(/\n/g, '<br>')
+    // Code blocks
+    .replace(/```([^`]+)```/g, '<pre class="bg-gray-100 p-2 rounded overflow-x-auto"><code>$1</code></pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+}
 
 export default function ScreenshotDetailPage() {
   const { user } = useAuth()
@@ -116,77 +137,89 @@ export default function ScreenshotDetailPage() {
           )}
 
           <div className="p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold">
-                  {screenshot.ai_title || 'Untitled'}
-                </h1>
-                {screenshot.ai_tags && screenshot.ai_tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {screenshot.ai_tags.map((tag, index) => (
-                      <span key={index} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">
-                        {tag}
-                      </span>
-                    ))}
+            {screenshot.process_status === 'pending' ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-400" />
+                <h2 className="text-xl font-semibold text-gray-600 mb-2">Processing Screenshot</h2>
+                <p className="text-gray-500">
+                  Our AI is analyzing your screenshot. This usually takes a few seconds.
+                </p>
+                <p className="text-sm text-gray-400 mt-4">
+                  Please refresh this page in a moment to see the results.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h1 className="text-2xl font-bold">
+                      {screenshot.ai_title || 'Untitled'}
+                    </h1>
+                    {screenshot.quick_link && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {screenshot.quick_link.content}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-2 ml-4">
+                    {isEditing ? (
+                      <>
+                        <button
+                          onClick={handleSave}
+                          disabled={saving}
+                          className="p-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                        >
+                          <Save size={20} />
+                        </button>
+                        <button
+                          onClick={handleCancel}
+                          className="p-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                        >
+                          <X size={20} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        <Edit2 size={20} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-gray-500 mb-4">
+                  Created: {format(new Date(screenshot.created_at), 'PPp')}
+                </p>
+
+                {screenshot.markdown_content && (
+                  <div className="mb-6">
+                    <div className="prose prose-sm max-w-none">
+                      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(screenshot.markdown_content) }} />
+                    </div>
                   </div>
                 )}
-              </div>
 
-              <div className="flex space-x-2 ml-4">
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="p-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-                    >
-                      <Save size={20} />
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      className="p-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                    >
-                      <X size={20} />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    <Edit2 size={20} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <p className="text-gray-500 mb-4">
-              Created: {format(new Date(screenshot.created_at), 'PPp')}
-            </p>
-
-            {screenshot.ai_description && (
-              <div className="mb-4">
-                <h3 className="font-semibold mb-2">AI Description</h3>
-                <p className="text-gray-700">{screenshot.ai_description}</p>
-              </div>
+                <div>
+                  <h3 className="font-semibold mb-2">User Notes</h3>
+                  {isEditing ? (
+                    <textarea
+                      value={editData.user_note}
+                      onChange={(e) => setEditData({ user_note: e.target.value })}
+                      placeholder="Add your notes..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  ) : (
+                    <p className="text-gray-700 whitespace-pre-wrap">
+                      {screenshot.user_note || 'No notes added yet.'}
+                    </p>
+                  )}
+                </div>
+              </>
             )}
-
-            <div>
-              <h3 className="font-semibold mb-2">User Notes</h3>
-              {isEditing ? (
-                <textarea
-                  value={editData.user_note}
-                  onChange={(e) => setEditData({ user_note: e.target.value })}
-                  placeholder="Add your notes..."
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              ) : (
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {screenshot.user_note || 'No notes added yet.'}
-                </p>
-              )}
-            </div>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api, Screenshot } from '@/lib/api'
 import { format } from 'date-fns'
-import { Trash2, Edit, Eye } from 'lucide-react'
+import { Trash2, Edit, Eye, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export function ScreenshotList() {
@@ -75,19 +75,29 @@ export function ScreenshotList() {
           )}
           
           <div className="p-4">
-            <h3 className="font-semibold text-lg mb-2">
-              {screenshot.ai_title || screenshot.user_note || 'Untitled'}
-            </h3>
-            
-            {screenshot.ai_description && (
-              <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                {screenshot.ai_description}
-              </p>
+            {screenshot.process_status === 'pending' ? (
+              <div className="text-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-gray-400" />
+                <p className="text-gray-500 font-medium">Image being processed</p>
+                <p className="text-xs text-gray-400 mt-1">Please check back later</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="font-semibold text-lg mb-2">
+                  {screenshot.ai_title || screenshot.user_note || 'Untitled'}
+                </h3>
+                
+                {screenshot.quick_link && (
+                  <p className="text-gray-600 text-sm mb-2">
+                    {screenshot.quick_link.content}
+                  </p>
+                )}
+                
+                <p className="text-xs text-gray-500 mb-4">
+                  {format(new Date(screenshot.created_at), 'PPp')}
+                </p>
+              </>
             )}
-            
-            <p className="text-xs text-gray-500 mb-4">
-              {format(new Date(screenshot.created_at), 'PPp')}
-            </p>
             
             <div className="flex justify-between items-center">
               <Link

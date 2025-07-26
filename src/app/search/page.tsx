@@ -4,16 +4,16 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
-import { api, Screenshot, Query } from '@/lib/api'
+import { api, Screenshot, Query, QueryResult } from '@/lib/api'
 import { format } from 'date-fns'
-import { Search, Clock, Eye } from 'lucide-react'
+import { Search, Clock, Eye, Brain, FileSearch } from 'lucide-react'
 import Link from 'next/link'
 
 export default function SearchPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Screenshot[]>([])
+  const [searchResults, setSearchResults] = useState<QueryResult[]>([])
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
@@ -34,8 +34,10 @@ export default function SearchPage() {
 
     try {
       const data = await api.search.query(query)
-      setResults(data)
+      console.log('Search results:', data)
+      setSearchResults(data)
     } catch (err: any) {
+      console.error('Search error:', err)
       setError(err.message || 'Failed to search screenshots')
     } finally {
       setSearching(false)
@@ -119,48 +121,65 @@ export default function SearchPage() {
           </div>
         )}
 
-        {results.length > 0 && (
+        {searchResults.length > 0 && (
           <div>
             <h2 className="text-xl font-semibold mb-4">
-              Found {results.length} result{results.length !== 1 ? 's' : ''}
+              Found {searchResults.length} Screenshot{searchResults.length !== 1 ? 's' : ''}
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {results.map((screenshot) => (
-                <div key={screenshot.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                  {screenshot.image_url && (
-                    <img
-                      src={screenshot.image_url}
-                      alt={screenshot.ai_title || 'Screenshot'}
-                      className="w-full h-48 object-cover"
-                    />
-                  )}
-                  
-                  <div className="p-4">
-                    <h3 className="font-semibold text-lg mb-2">
-                      {screenshot.ai_title || screenshot.user_note || 'Untitled'}
-                    </h3>
-                    
-                    {screenshot.ai_description && (
-                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                        {screenshot.ai_description}
-                      </p>
-                    )}
-                    
-                    <p className="text-xs text-gray-500 mb-4">
-                      {format(new Date(screenshot.created_at), 'PPp')}
-                    </p>
-                    
-                    <Link
-                      href={`/screenshot/${screenshot.id}`}
-                      className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
-                    >
-                      <Eye size={16} />
-                      <span className="text-sm">View Details</span>
-                    </Link>
-                  </div>
-                </div>
-              ))}
+              {searchResults.map((result) => {
+                  const screenshot = result.screenshot;
+                  return (
+                    <div key={screenshot.id} className="bg-white rounded-lg shadow-md overflow-hidden relative">
+                      {/* Relevance Score Badge */}
+                      <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                        {(result.score * 100).toFixed(0)}% match
+                      </div>
+                      
+                      {screenshot.image_url && (
+                        <img
+                          src={screenshot.image_url}
+                          alt={screenshot.ai_title || 'Screenshot'}
+                          className="w-full h-48 object-cover"
+                        />
+                      )}
+                      
+                      <div className="p-4">
+                        {screenshot.process_status === 'pending' ? (
+                          <div className="text-center py-4">
+                            <p className="text-gray-500 font-medium">Image being processed</p>
+                            <p className="text-xs text-gray-400 mt-1">Please check back later</p>
+                          </div>
+                        ) : (
+                          <>
+                            <h3 className="font-semibold text-lg mb-2">
+                              {screenshot.ai_title || screenshot.user_note || 'Untitled'}
+                            </h3>
+                            
+                            {screenshot.quick_link && (
+                              <p className="text-gray-600 text-sm mb-2">
+                                {screenshot.quick_link.content}
+                              </p>
+                            )}
+                            
+                            <p className="text-xs text-gray-500 mb-4">
+                              {format(new Date(screenshot.created_at), 'PPp')}
+                            </p>
+                          </>
+                        )}
+                        
+                        <Link
+                          href={`/screenshot/${screenshot.id}`}
+                          className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
+                        >
+                          <Eye size={16} />
+                          <span className="text-sm">View Details</span>
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         )}
