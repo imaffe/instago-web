@@ -202,8 +202,9 @@ export default function Home() {
   }
 
   const runDiagnosis = async () => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://instago-server-fbtibvhmga-uc.a.run.app/api/v1'
     console.log('🔧 Running API diagnosis...')
-    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL)
+    console.log('API URL:', API_URL)
     console.log('User:', user?.email)
     
     // 测试原始请求
@@ -211,7 +212,7 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
         console.log('🧪 Testing raw API call...')
-        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/screenshot-note?skip=0&limit=1`, {
+        const testResponse = await fetch(`${API_URL}/screenshot-note?skip=0&limit=1`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
@@ -588,16 +589,6 @@ export default function Home() {
                    </div>
                 </>
               )}
-
-               {/* API 诊断按钮 */}
-               <button
-                 onClick={runDiagnosis}
-                 className="flex items-center space-x-2 px-3 py-2 bg-orange-100 text-orange-800 border border-orange-300 rounded-lg hover:bg-orange-200 transition-colors"
-                 title="Test API connection and check for issues"
-               >
-                 <Filter className="w-4 h-4" />
-                 <span>Test API</span>
-               </button>
 
               
             </div>

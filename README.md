@@ -27,7 +27,7 @@ cp .env.example .env.local
 Edit `.env.local` with your actual values:
 - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
-- `NEXT_PUBLIC_API_URL`: The Instago backend API URL (default: http://localhost:8000/api/v1)
+- `NEXT_PUBLIC_API_URL`: The Instago backend API URL (default: https://instago-server-fbtibvhmga-uc.a.run.app/api/v1)
 
 3. Run the development server:
 ```bash
