@@ -1,5 +1,0 @@
-.search-container:focus-within {box-shadow: 0 0 0 1px rgba(25, 103, 210, 1); border-top-color: rgba(25, 103, 210, 1); border-right-color: rgba(25, 103, 210, 1); border-bottom-color: rgba(25, 103, 210, 1); border-left-color: rgba(25, 103, 210, 1)}
-.card-shadow {box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05)}
-.header-shadow {box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05)}
-.__paraflow-fa-fas {font-family: "Font Awesome 6 Free"; display: inline-block; line-height: 1; font-weight: 900; font-style: normal}
-.tech-blue-hover:hover {background-color: rgba(217, 231, 255, 1); color: rgba(25, 103, 210, 1)}
