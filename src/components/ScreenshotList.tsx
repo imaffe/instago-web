@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, Screenshot, formatDateSafe } from '@/lib/api'
-import { format } from 'date-fns'
-import { Trash2, Edit, Eye } from 'lucide-react'
+import { Trash2, Eye } from 'lucide-react'
 import Link from 'next/link'
 
 export function ScreenshotList() {

@@ -154,31 +154,6 @@ function LoginForm() {
 
   const callbackURL = searchParams?.get('callback')
   
-  const handlePageLoad = async () => {
-    if (!callbackURL) return
-    
-    console.log('🔗 回调URL:', callbackURL)
-    
-    // 检查现有登录状态
-    const isValidAuth = await validateAuthState()
-    
-    if (isValidAuth && user) {
-      console.log('✅ 用户已登录，显示确认对话框')
-      setUIState(prev => ({ 
-        ...prev, 
-        showReauthDialog: true, 
-        showLoginForm: false 
-      }))
-    } else {
-      console.log('🔑 用户未登录，显示登录界面')
-      setUIState(prev => ({ 
-        ...prev, 
-        showLoginForm: true,
-        showReauthDialog: false 
-      }))
-    }
-  }
-  
   // 页面初始化处理
   useEffect(() => {
     console.log('LoginPage mounted')
@@ -196,8 +171,33 @@ function LoginForm() {
       return
     }
     
+    const handlePageLoad = async () => {
+      if (!callbackURL) return
+      
+      console.log('🔗 回调URL:', callbackURL)
+      
+      // 检查现有登录状态
+      const isValidAuth = await validateAuthState()
+      
+      if (isValidAuth && user) {
+        console.log('✅ 用户已登录，显示确认对话框')
+        setUIState(prev => ({ 
+          ...prev, 
+          showReauthDialog: true, 
+          showLoginForm: false 
+        }))
+      } else {
+        console.log('🔑 用户未登录，显示登录界面')
+        setUIState(prev => ({ 
+          ...prev, 
+          showLoginForm: true,
+          showReauthDialog: false 
+        }))
+      }
+    }
+    
     handlePageLoad()
-  }, [callbackURL, user, handlePageLoad])
+  }, [callbackURL, user])
 
   const proceedWithCallback = async () => {
     if (!callbackURL || !user) {

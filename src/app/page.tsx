@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { AuthForm } from '@/components/AuthForm'
 import { useDevMode } from '@/lib/devMode'
@@ -8,12 +8,12 @@ import { DeleteConfirmModal } from '@/components/DeleteConfirmModal'
 import { ErrorToast } from '@/components/ErrorToast'
 import { ScreenshotDetailModal } from '@/components/ScreenshotDetailModal'
 import { AnkiCardViewer } from '@/components/AnkiCardViewer'
-import { api, Screenshot, formatDateSafe, QueryResult } from '@/lib/api'
+import { api, Screenshot, formatDateSafe } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
-import { format } from 'date-fns'
+import { useScreenshotCache } from '@/hooks/useScreenshotCache'
+import { useSearchCache } from '@/hooks/useSearchCache'
 import { 
   Images, 
-  Star, 
   Clock, 
   Trash2, 
   Plus, 
@@ -25,11 +25,8 @@ import {
   Filter,
   Eye,
   Download,
-  Folder,
   BookOpen
 } from 'lucide-react'
-import Link from 'next/link'
-import { debounce } from 'lodash'
 
 export default function Home() {
   const { user, loading, signOut } = useAuth()
@@ -41,18 +38,41 @@ export default function Home() {
     // 动态导入开发模式管理器以确保控制台函数已注册
     import('@/lib/devMode').then(() => {
       // 开发工具已在导入时自动初始化
-      console.log('🚀 开发工具已初始化，可以在控制台使用 dev(), prod(), devStatus()')
+      console.log('🚀 开发工具已初始化，可以在控制台使用 dev(), prod(), devStatus(), cache(), clearCache(), cacheStats()')
+    })
+    
+    // 导入缓存失效工具
+    import('@/lib/cacheInvalidation').then(() => {
+      console.log('🧹 缓存失效工具已加载，可以在控制台使用 cacheInvalidation')
     })
   }, [])
-  const [screenshots, setScreenshots] = useState<Screenshot[]>([])
-  const [screenshotLoading, setScreenshotLoading] = useState(true)
-  const [screenshotError, setScreenshotError] = useState<string | null>(null)
+  // Use caching hooks
+  const {
+    screenshots,
+    loading: screenshotLoading,
+    error: screenshotError,
+    refreshScreenshots,
+    removeScreenshot: removeScreenshotFromCache,
+    getThumbnailUrl,
+    forceRefresh
+  } = useScreenshotCache({
+    enableThumbnails: true,
+    thumbnailOptions: { width: 300, height: 200, quality: 0.8 },
+    autoRefresh: true,
+    refreshInterval: 15 * 60 * 1000 // 15 minutes
+  })
+
+  const {
+    searchResults,
+    isSearching,
+    searchError,
+    search,
+    clearSearch,
+    lastQuery
+  } = useSearchCache()
   
   // 搜索相关状态
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<Screenshot[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
 
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -98,72 +118,14 @@ export default function Home() {
     { id: 'other', name: 'Presenting at Adventure X', count: 56, color: 'gray' }
   ]
 
-  const fetchScreenshots = async () => {
-    try {
-      setScreenshotLoading(true)
-      setScreenshotError(null)
-      console.log('🔄 Fetching screenshots...')
-      
-      const data = await api.screenshots.list()
-      setScreenshots(data)
-      
-      if (data.length === 0) {
-        console.log('📭 No screenshots found')
-      } else {
-        console.log(`📸 Found ${data.length} screenshots`)
-      }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-      console.error('❌ Error fetching screenshots:', errorMessage)
-      setScreenshotError(errorMessage)
-      setScreenshots([]) // 确保显示空状态
-    } finally {
-      setScreenshotLoading(false)
-    }
-  }
-
-  // 使用防抖函数来避免过于频繁的 API 调用
-  const debouncedSearch = useRef(
-    debounce(async (query: string) => {
-      if (query.trim() === '') {
-        setSearchResults([])
-        setIsSearching(false)
-        return
-      }
-
-      console.log(`🔍 Searching for: ${query}`)
-      setIsSearching(true)
-      setSearchError(null)
-
-      try {
-        const results = await api.search(query)
-        console.log(`✅ Found ${results.length} search results`)
-        console.log('🔍 Search results data structure:', results.slice(0, 2)) // 只打印前2个结果来检查数据结构
-        
-        // 从QueryResult中提取Screenshot对象
-        const screenshots = results.map(result => result.screenshot)
-        setSearchResults(screenshots)
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown search error'
-        console.error('❌ Search failed:', errorMessage)
-        setSearchError(errorMessage)
-        setSearchResults([])
-      } finally {
-        setIsSearching(false)
-      }
-    }, 300) // 300ms 延迟
-  ).current
-
+  // Handle search term changes
   useEffect(() => {
-    debouncedSearch(searchTerm)
-  }, [searchTerm, debouncedSearch])
-
-
-  useEffect(() => {
-    if (user) {
-      fetchScreenshots()
+    if (searchTerm.trim() === '') {
+      clearSearch()
+    } else {
+      search(searchTerm)
     }
-  }, [user])
+  }, [searchTerm, search, clearSearch])
 
   useEffect(() => {
     if (user && !user.email_confirmed_at) {
@@ -192,9 +154,8 @@ export default function Home() {
 
     console.log(`🗑️ 开始删除截图: ${screenshotId}`)
     
-    // 立即从界面移除截图（乐观删除）
-    const screenshotToDelete = screenshots.find(s => s.id === screenshotId)
-    setScreenshots(prev => prev.filter(s => s.id !== screenshotId))
+    // 立即从缓存中移除截图（乐观删除）
+    removeScreenshotFromCache(screenshotId)
     
     // 关闭模态框
     setDeleteModal({ isOpen: false, screenshotId: null, screenshotTitle: '' })
@@ -207,14 +168,8 @@ export default function Home() {
     } catch (err: unknown) {
       console.error(`❌ 删除截图失败: ${screenshotId}`, err)
       
-      // 删除失败 - 回滚：重新添加截图到列表
-      if (screenshotToDelete) {
-        setScreenshots(prev => {
-          // 按创建时间重新插入到正确位置
-          const newList = [...prev, screenshotToDelete]
-          return newList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        })
-      }
+      // 删除失败 - 刷新缓存以恢复数据
+      await refreshScreenshots()
       
       // 显示错误提示
       const errorMessage = err instanceof Error ? err.message : '删除截图时发生未知错误'
@@ -265,7 +220,7 @@ export default function Home() {
 
   // 导航到指定索引的截图
   const handleNavigateScreenshot = (newIndex: number) => {
-    const currentList = searchTerm ? searchResults : screenshots
+    const currentList = lastQuery ? searchResults : screenshots
     if (newIndex >= 0 && newIndex < currentList.length) {
       const newScreenshot = currentList[newIndex]
       setDetailModal(prev => ({
@@ -313,7 +268,7 @@ export default function Home() {
     }
     
     console.log('🔄 Now trying through API wrapper...')
-    await fetchScreenshots()
+    await refreshScreenshots()
   }
 
   const truncateText = (text: string, maxLength: number = 16) => {
@@ -321,7 +276,7 @@ export default function Home() {
     return text.substring(0, maxLength) + '...'
   }
 
-  const displayedScreenshots = searchTerm ? searchResults : screenshots
+  const displayedScreenshots = lastQuery ? searchResults : screenshots
 
   // 根据选择的分类获取标题
   const getCategoryTitle = () => {
@@ -378,7 +333,7 @@ export default function Home() {
           <p className="text-sm text-gray-500 mb-6">Error: {screenshotError}</p>
           <div className="space-x-4">
             <button
-              onClick={fetchScreenshots}
+              onClick={refreshScreenshots}
               className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -415,7 +370,7 @@ export default function Home() {
           </p>
           {!searchTerm && (
             <button
-              onClick={fetchScreenshots}
+              onClick={refreshScreenshots}
               className="inline-flex items-center space-x-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -462,7 +417,7 @@ export default function Home() {
             <div 
               key={screenshot.id} 
               data-screenshot-card
-              className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer relative ${viewMode === 'list' ? 'flex' : ''}`}
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer relative ${viewMode === 'list' ? 'flex' : ''}`}
               onClick={(e) => handleViewScreenshot(screenshot, e.currentTarget)}
             >
               {/* 处理状态指示器 */}
@@ -489,27 +444,35 @@ export default function Home() {
               {screenshot.image_url && (
                 <div className={`relative ${viewMode === 'list' ? 'w-32 h-24 flex-shrink-0' : 'w-full h-48'}`}>
                   <img
-                    src={screenshot.image_url}
+                    src={getThumbnailUrl(screenshot.id) || screenshot.image_url}
                     alt={screenshot.ai_title || '截图'}
                     className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      // Fallback to original image if thumbnail fails
+                      const target = e.target as HTMLImageElement
+                      if (target.src !== screenshot.image_url) {
+                        target.src = screenshot.image_url!
+                      }
+                    }}
                   />
                 </div>
               )}
               
               <div className={`p-4 ${viewMode === 'list' ? 'flex-1 flex items-center justify-between' : ''}`}>
                 <div className={viewMode === 'list' ? 'flex-1' : ''}>
-                  <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1">
                     {getTitle()}
                   </h3>
                   
                   {/* 根据状态显示不同的描述 */}
                   {getDescription() && (
-                    <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-2 line-clamp-2">
                       {getDescription()}
                     </p>
                   )}
                   
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {formatDateSafe(screenshot.created_at)}
                   </p>
                 </div>
@@ -525,7 +488,7 @@ export default function Home() {
                       const cardElement = e.currentTarget.closest('[data-screenshot-card]') as HTMLElement
                       handleViewScreenshot(screenshot, cardElement)
                     }}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition-colors"
                     title="查看详情"
                   >
                     <Eye className="w-4 h-4" />
@@ -533,7 +496,7 @@ export default function Home() {
                   
                   {/* 下载按钮 - 所有状态都可用 */}
                   <button
-                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    className="p-2 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900 rounded-lg transition-colors"
                     title="下载"
                   >
                     <Download className="w-4 h-4" />
@@ -544,7 +507,7 @@ export default function Home() {
                   {/* 删除按钮 - 所有状态都可用 */}
                   <button
                     onClick={() => handleDelete(screenshot.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors"
                     title="删除"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -592,18 +555,18 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
       {/* 侧边栏 */}
-      <div className="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col fixed left-0 top-0 bottom-0 z-40">
+      <div className="w-64 bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 flex flex-col fixed left-0 top-0 bottom-0 z-40">
         {/* Logo */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
             <img 
               src="/instago-icon-trans-1.png" 
               alt="InstaGo Logo" 
               className="w-20 h-20 object-contain"
             />
-            <span className="text-xl font-bold text-gray-900">InstaGo</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">InstaGo</span>
           </div>
         </div>
 
@@ -618,8 +581,8 @@ export default function Home() {
                    onClick={() => setSelectedCategory(category.id)}
                    className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                      selectedCategory === category.id
-                       ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                       : 'text-gray-700 hover:bg-gray-50'
+                       ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
+                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                    }`}
                    title={category.name} // 显示完整文本的工具提示
                  >
@@ -627,7 +590,7 @@ export default function Home() {
                      <Icon className="w-5 h-5 flex-shrink-0" />
                      <span className="truncate">{truncateText(category.name)}</span>
                    </div>
-                   <span className="text-xs text-gray-500 flex-shrink-0">{category.count}</span>
+                   <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{category.count}</span>
                  </button>
                )
              })}
@@ -636,59 +599,59 @@ export default function Home() {
           {/* 标签分类 */}
           <div className="mt-8">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-900">Tags</h3>
-              <button className="p-1 hover:bg-gray-100 rounded">
-                <Plus className="w-4 h-4 text-gray-400" />
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Tags</h3>
+              <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                <Plus className="w-4 h-4 text-gray-400 dark:text-gray-500" />
               </button>
             </div>
                          <div className="space-y-2">
                {tags.map((tag) => (
                  <div
                    key={tag.id}
-                   className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer"
+                   className="flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer"
                    title={tag.name} // 显示完整文本的工具提示
                  >
                    <div className="flex items-center space-x-3 flex-1 min-w-0">
                      <div className={`w-3 h-3 rounded-full bg-${tag.color}-500 flex-shrink-0`}></div>
-                     <span className="truncate">{truncateText(tag.name)}</span>
+                     <span className="truncate text-gray-700 dark:text-gray-300">{truncateText(tag.name)}</span>
                    </div>
-                   <span className="text-xs text-gray-500 flex-shrink-0 ml-2">{tag.count}</span>
+                   <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">{tag.count}</span>
                  </div>
                ))}
              </div>
           </div>
 
           {/* 添加新标签 */}
-          <button className="w-full mt-4 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg flex items-center space-x-2">
+          <button className="w-full mt-4 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-2">
             <Plus className="w-4 h-4" />
             <span>Add tag</span>
           </button>
         </div>
 
         {/* 好友管理 */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center space-x-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer">
             <Users className="w-5 h-5" />
             <span>我的好友</span>
           </div>
         </div>
 
                  {/* 用户信息 */}
-         <div className="p-4 border-t border-gray-200">
+         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
            <div className="flex items-center space-x-3">
-             <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-               <span className="text-sm font-medium text-gray-700">
+             <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
+               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                  {user.email?.charAt(0).toUpperCase()}
                </span>
              </div>
              <div className="flex-1 min-w-0">
-               <p className="text-sm font-medium text-gray-900 truncate" title={user.email}>
+               <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={user.email}>
                  {user.email}
                </p>
              </div>
              <button
                onClick={signOut}
-               className="p-1 hover:bg-gray-100 rounded text-gray-400 flex-shrink-0"
+               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-400 dark:text-gray-500 flex-shrink-0"
              >
                <MoreVertical className="w-4 h-4" />
              </button>
@@ -699,10 +662,10 @@ export default function Home() {
       {/* 主内容区域 */}
       <div className="flex-1 flex flex-col ml-64 h-screen overflow-hidden">
         {/* 顶部工具栏 */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">{getCategoryTitle()}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{getCategoryTitle()}</h1>
               {/* 开发模式指示器 */}
               {isDevMode && (
                 <div className="flex items-center space-x-2 bg-orange-100 border border-orange-200 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -747,6 +710,29 @@ export default function Home() {
                 </>
               )}
 
+              {/* Cache management buttons - show in dev mode */}
+              {isDevMode && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={refreshScreenshots}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="刷新缓存"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={forceRefresh}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="强制刷新(清除缓存)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               
             </div>
           </div>

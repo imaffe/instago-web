@@ -157,6 +157,34 @@ export const api = {
       });
       return { success: true };
     },
+
+    upload: async (file: File, tags?: string): Promise<Screenshot> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (tags) {
+        formData.append('tags', tags);
+      }
+
+      const headers = await getAuthHeaders();
+      // 移除 Content-Type，让浏览器自动设置 multipart/form-data
+      const { 'Content-Type': _, ...headersWithoutContentType } = headers;
+
+      const response = await fetch(`${getApiUrl()}/upload`, {
+        method: 'POST',
+        headers: {
+          ...headersWithoutContentType,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload failed:', response.status, errorText);
+        throw new Error(`Upload failed: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    },
   },
 
   search: async (query: string): Promise<QueryResult[]> => {

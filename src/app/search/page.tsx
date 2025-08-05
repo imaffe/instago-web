@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
-import { api, Screenshot, formatDateSafe, QueryResult } from '@/lib/api'
-import { format } from 'date-fns'
-import { Search, Clock, Eye } from 'lucide-react'
+import { api, Screenshot, formatDateSafe } from '@/lib/api'
+import { Search, Eye } from 'lucide-react'
 import Link from 'next/link'
 
 export default function SearchPage() {

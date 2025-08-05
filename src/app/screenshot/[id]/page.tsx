@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
 import { api, Screenshot, formatDateSafe } from '@/lib/api'
-import { format } from 'date-fns'
+
 import { ArrowLeft, Edit2, Save, X } from 'lucide-react'
 import Link from 'next/link'
 

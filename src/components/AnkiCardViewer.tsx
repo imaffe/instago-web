@@ -15,7 +15,7 @@ export function AnkiCardViewer() {
     try {
       console.log('Fetching screenshots for Anki cards...')
       // 获取更多截图用于卡片展示
-      const data = await api.screenshots.list(0, 100)
+      const data = await api.screenshots.list()
       // 只显示有 AI 输出内容的截图
       const screenshotsWithAI = data.filter(s => 
         s.ai_title || s.ai_description || s.markdown_content
