@@ -13,7 +13,7 @@ const AUTH_STATE_KEY = 'instago_auth_state'
 const AUTH_EXPIRY_KEY = 'instago_auth_expiry'
 const CALLBACK_COOLDOWN_KEY = 'instago_callback_cooldown'
 const AUTH_VALIDITY_DURATION = 24 * 60 * 60 * 1000 // 24小时
-const CALLBACK_COOLDOWN_DURATION = 5000 // 5秒冷却时间
+const CALLBACK_COOLDOWN_DURATION = 3000 // 3秒冷却时间，避免与Mac端冲突
 
 // 定义认证状态类型
 interface AuthStateData {
@@ -31,19 +31,6 @@ function setAuthState(authData: AuthStateData) {
   console.log('🔐 前端登录状态已保存，过期时间:', new Date(expiryTime))
 }
 
-function getAuthState(): AuthStateData | null {
-  const expiryTime = localStorage.getItem(AUTH_EXPIRY_KEY)
-  const currentTime = Date.now()
-  
-  if (!expiryTime || currentTime > parseInt(expiryTime)) {
-    console.log('⏰ 前端登录状态已过期，清除状态')
-    clearAuthState()
-    return null
-  }
-  
-  const authData = localStorage.getItem(AUTH_STATE_KEY)
-  return authData ? JSON.parse(authData) as AuthStateData : null
-}
 
 function clearAuthState() {
   localStorage.removeItem(AUTH_STATE_KEY)
@@ -52,28 +39,6 @@ function clearAuthState() {
   console.log('🧹 前端登录状态已清除')
 }
 
-// 验证登录状态的有效性
-async function validateAuthState(): Promise<boolean> {
-  const authState = getAuthState()
-  if (!authState) return false
-  
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session || !session.access_token) {
-      console.log('❌ Session验证失败，清除状态')
-      clearAuthState()
-      return false
-    }
-    
-    console.log('✅ Session验证成功')
-    return true
-  } catch (error) {
-    console.log('❌ Session验证请求失败，清除状态', error)
-    clearAuthState()
-    return false
-  }
-}
 
 // 回调去重机制
 function canSendCallback(callbackURL: string): boolean {
@@ -98,27 +63,39 @@ function canSendCallback(callbackURL: string): boolean {
   return true
 }
 
-// 回调URL验证
-function validateCallbackURL(callbackURL: string): boolean {
+// 回调URL验证 - 加强验证和错误处理
+function validateCallbackURL(callbackURL: string): { valid: boolean; error?: string } {
   const allowedSchemes = ['instago://']
   const allowedHosts = ['auth']
+  
+  if (!callbackURL) {
+    return { valid: false, error: '回调URL不能为空' }
+  }
+  
+  if (typeof callbackURL !== 'string') {
+    return { valid: false, error: '回调URL必须是字符串' }
+  }
+  
+  if (callbackURL.length > 1000) {
+    return { valid: false, error: '回调URL过长' }
+  }
   
   try {
     if (!allowedSchemes.some(scheme => callbackURL.startsWith(scheme))) {
       console.log('❌ 不允许的回调scheme:', callbackURL)
-      return false
+      return { valid: false, error: `不支持的URL scheme。支持的scheme: ${allowedSchemes.join(', ')}` }
     }
     
     const url = new URL(callbackURL)
     if (url.protocol === 'instago:' && !allowedHosts.includes(url.hostname)) {
       console.log('❌ 不允许的回调host:', url.hostname)
-      return false
+      return { valid: false, error: `不支持的主机名。支持的主机: ${allowedHosts.join(', ')}` }
     }
     
-    return true
+    return { valid: true }
   } catch (error) {
     console.log('❌ 无效的回调URL:', error)
-    return false
+    return { valid: false, error: `URL格式错误: ${error instanceof Error ? error.message : '未知错误'}` }
   }
 }
 
@@ -159,45 +136,82 @@ function LoginForm() {
     console.log('LoginPage mounted')
     console.log('callbackURL:', callbackURL)
     console.log('user:', user)
+    console.log('📊 页面状态检测:')
+    console.log('  - 是否有callback参数:', !!callbackURL)
+    console.log('  - 用户登录状态:', !!user)
     
+    // 如果没有callback参数，允许用户正常登录，但不进行Mac app回调
     if (!callbackURL) {
-      console.log('❌ 缺少回调URL参数')
-      setUIState(prev => ({ ...prev, error: '无效的登录链接', showLoginForm: false }))
+      console.log('ℹ️ 无callback参数，显示正常登录页面')
+      setUIState(prev => ({ 
+        ...prev, 
+        showLoginForm: true,
+        showReauthDialog: false,
+        error: null
+      }))
       return
     }
     
-    if (!validateCallbackURL(callbackURL)) {
-      setUIState(prev => ({ ...prev, error: '无效的回调URL', showLoginForm: false }))
+    // 有callback参数时验证URL有效性
+    const urlValidation = validateCallbackURL(callbackURL)
+    if (!urlValidation.valid) {
+      console.error('❌ 无效的回调URL:', urlValidation.error)
+      setUIState(prev => ({ 
+        ...prev, 
+        error: `无效的Mac app回调URL: ${urlValidation.error}\n\n您仍可以正常登录，但无法自动连接Mac应用。`, 
+        showLoginForm: true  // 允许用户继续登录
+      }))
       return
     }
     
-    const handlePageLoad = async () => {
-      if (!callbackURL) return
+    // 简化页面初始化逻辑
+    const initializePage = () => {
+      if (!callbackURL) {
+        // 无callback参数，显示正常登录页面
+        console.log('📝 初始化：显示正常登录页面')
+        return
+      }
       
-      console.log('🔗 回调URL:', callbackURL)
+      // 有callback参数，记录详细信息
+      console.log('🔗 初始化：棄测到Mac app回调请求')
+      console.log('  原始URL:', callbackURL)
+      console.log('  URL长度:', callbackURL.length)
+      console.log('  URL编码检测:', callbackURL.includes('%') ? '已编码' : '未编码')
       
-      // 检查现有登录状态
-      const isValidAuth = await validateAuthState()
+      // URL解析测试
+      try {
+        const testUrl = new URL(callbackURL)
+        console.log('  URL解析结果:')
+        console.log('    协议:', testUrl.protocol)
+        console.log('    主机:', testUrl.hostname)
+        console.log('    路径:', testUrl.pathname)
+        console.log('    查询参数:', testUrl.search)
+      } catch (e) {
+        console.log('  URL解析失败:', e)
+      }
       
-      if (isValidAuth && user) {
-        console.log('✅ 用户已登录，显示确认对话框')
+      // 检查用户是否已登录
+      if (user) {
+        console.log('✅ 用户已登录，直接显示Mac app连接确认对话框')
         setUIState(prev => ({ 
           ...prev, 
           showReauthDialog: true, 
-          showLoginForm: false 
+          showLoginForm: false,
+          error: null
         }))
       } else {
-        console.log('🔑 用户未登录，显示登录界面')
+        console.log('🔑 用户未登录，显示登录界面（登录成功后将显示Mac app连接对话框）')
         setUIState(prev => ({ 
           ...prev, 
           showLoginForm: true,
-          showReauthDialog: false 
+          showReauthDialog: false,
+          error: null
         }))
       }
     }
     
-    handlePageLoad()
-  }, [callbackURL, user])
+    initializePage()
+  }, [callbackURL, user]) // 保持简单的依赖，但简化处理逻辑
 
   const proceedWithCallback = async () => {
     if (!callbackURL || !user) {
@@ -216,25 +230,66 @@ function LoginForm() {
     }
     
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      // 验证用户状态
+      if (!user || !user.id || !user.email) {
+        console.error('❌ 用户信息不完整:', { user })
+        setUIState(prev => ({ 
+          ...prev, 
+          error: '用户信息不完整，请重新登录' 
+        }))
+        return
+      }
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('❌ 获取session失败:', sessionError)
+        setUIState(prev => ({ 
+          ...prev, 
+          error: `获取会话信息失败: ${sessionError.message}` 
+        }))
+        return
+      }
+      
       const token = session?.access_token
 
       if (!token) {
         console.error('❌ 无法获取访问令牌')
-        setUIState(prev => ({ ...prev, error: '无法获取访问令牌，请重新登录' }))
+        setUIState(prev => ({ 
+          ...prev, 
+          error: '无法获取访问令牌，请重新登录\n\n可能原因:\n1. 登录状态已过期\n2. 网络连接问题\n3. Supabase服务异常' 
+        }))
+        return
+      }
+      
+      // 验证token有效性
+      if (session && session.expires_at && session.expires_at < Date.now() / 1000) {
+        console.error('❌ 令牌已过期')
+        setUIState(prev => ({ 
+          ...prev, 
+          error: '登录令牌已过期，请重新登录' 
+        }))
         return
       }
 
-      // 构建回调URL参数 - 添加明确的回调标识
+      // 构建回调URL参数 - 标准化参数名称以匹配Mac端期望
       const callbackParams = new URLSearchParams({
-        action: 'login_callback',  // 明确标识这是登录回调
-        type: 'reauth',           // 标识这是重新授权
+        // 核心参数 - Mac端必需
         token: token,
         user_id: user.id,
-        user_name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
         user_email: user.email || '',
-        timestamp: Date.now().toString(),  // 添加时间戳
-        source: 'web_login'       // 标识来源
+        user_name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
+        
+        // 元数据参数
+        action: 'login_callback',  // 明确标识这是登录回调
+        type: 'reauth',           // 标识这是重新授权
+        expires_in: (session?.expires_in || 3600).toString(),
+        timestamp: Date.now().toString(),
+        source: 'web_login',
+        
+        // 调试参数
+        debug: 'true',            // 启用Mac端调试日志
+        version: '2.0'            // 协议版本
       })
 
       // 处理callback URL
@@ -250,11 +305,32 @@ function LoginForm() {
       
       const redirectURL = `${decodedCallback}?${callbackParams.toString()}`
 
-      console.log('📤 发送授权回调:')
-      console.log('  原始callback URL:', callbackURL)
-      console.log('  解码后URL:', decodedCallback) 
-      console.log('  完整redirect URL:', redirectURL)
-      console.log('  回调参数:', Object.fromEntries(callbackParams))
+      console.log('📤 发送授权回调详细信息:')
+      console.log('  ===== URL处理过程 =====')
+      console.log('  1. 原始callback URL:', callbackURL)
+      console.log('  2. 解码后URL:', decodedCallback) 
+      console.log('  3. URL是否发生变化:', callbackURL !== decodedCallback ? '是' : '否')
+      console.log('  4. 完整redirect URL:', redirectURL)
+      console.log('  5. redirect URL长度:', redirectURL.length)
+      
+      console.log('  ===== 回调参数详情 =====')
+      const paramsObj = Object.fromEntries(callbackParams)
+      Object.entries(paramsObj).forEach(([key, value]) => {
+        console.log(`    ${key}:`, value)
+      })
+      
+      console.log('  ===== 用户信息验证 =====')
+      console.log('  用户ID:', user.id)
+      console.log('  用户邮箱:', user.email)
+      console.log('  用户名称:', user.user_metadata?.full_name || '未设置')
+      console.log('  Token长度:', token.length)
+      console.log('  Session过期时间:', session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : '未知')
+      
+      console.log('  ===== 系统环境检测 =====')
+      console.log('  浏览器:', navigator.userAgent.includes('Safari') ? 'Safari' : '其他')
+      console.log('  操作系统:', navigator.platform)
+      console.log('  当前时间:', new Date().toISOString())
+      console.log('  页面URL:', window.location.href)
       
       // 保存授权状态
       setAuthState({
@@ -279,6 +355,12 @@ function LoginForm() {
         // 记录跳转开始时间，用于检测是否成功
         const jumpStartTime = Date.now()
         console.log('⏱️ 跳转开始时间:', jumpStartTime)
+        console.log('🎯 跳转目标检测:')
+        console.log('  目标URL scheme:', redirectURL.split('?')[0])
+        console.log('  参数数量:', redirectURL.split('?')[1]?.split('&').length || 0)
+        console.log('  浏览器支持检测:', 'location' in window ? '✅' : '❌')
+        console.log('  页面可见性:', document.visibilityState)
+        console.log('  页面焦点状态:', document.hasFocus() ? '有焦点' : '无焦点')
         
         // 监听页面可见性变化，检测是否成功跳转到Mac app
         const handleVisibilityChange = () => {
@@ -289,58 +371,90 @@ function LoginForm() {
         
         document.addEventListener('visibilitychange', handleVisibilityChange)
         
-        // 设置超时检测，如果5秒后还在当前页面，可能跳转失败
-        setTimeout(() => {
+        // 设置超时检测，如果6秒后还在当前页面，可能跳转失败
+        const timeoutId = setTimeout(() => {
           if (!document.hidden) {
-            console.log('⚠️ 5秒后仍在当前页面，可能跳转失败')
+            console.log('⚠️ 6秒后仍在当前页面，可能跳转失败')
             setUIState(prev => ({ 
               ...prev,
-              error: '似乎没有成功跳转到Mac应用。请确保已安装InstaGo应用，或尝试手动重试。'
+              error: '似乎没有成功跳转到Mac应用。请确保已安装InstaGo应用，或检查URL scheme注册。\n\n如果问题持续，请尝试:\n1. 重启InstaGo Mac应用\n2. 检查应用是否在后台运行\n3. 重新安装Mac应用以修复URL scheme注册',
+              debugURL: redirectURL // 保持debugURL可用于重试
             }))
           }
           document.removeEventListener('visibilitychange', handleVisibilityChange)
-        }, 5000)
+        }, 6000)
         
-        // 尝试多种方式触发URL scheme
+        // 如果成功跳转，清除超时检测
+        const handleVisibilityChangeWithCleanup = () => {
+          if (document.hidden) {
+            const jumpDuration = Date.now() - jumpStartTime
+            console.log('✅ 页面已隐藏，成功跳转到Mac app')
+            console.log('🕐 跳转耗时:', jumpDuration + 'ms')
+            console.log('📊 跳转统计:')
+            console.log('  开始时间:', new Date(jumpStartTime).toLocaleTimeString())
+            console.log('  完成时间:', new Date().toLocaleTimeString())
+            console.log('  是否快速跳转:', jumpDuration < 1000 ? '是' : '否')
+            clearTimeout(timeoutId)
+            document.removeEventListener('visibilitychange', handleVisibilityChangeWithCleanup)
+          }
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+        document.addEventListener('visibilitychange', handleVisibilityChangeWithCleanup)
+        
+        // 使用多种方式尝试触发URL scheme，提高成功率
         try {
-          // 方法1: 直接设置location
+          console.log('🚀 开始跳转到Mac应用')
+          
+          // 方法1: 直接设置location.href (主要方法)
           window.location.href = redirectURL
           
-          // 方法2: 如果直接设置失败，尝试创建隐藏链接点击
+          // 方法2: 如果主要方法失败，创建隐藏的iframe作为备用
           setTimeout(() => {
-            const link = document.createElement('a')
-            link.href = redirectURL
-            link.style.display = 'none'
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            console.log('🔗 备用方法：隐藏链接点击完成')
-          }, 100)
-          
-          // 方法3: 尝试iframe方式（某些浏览器可能需要）
-          setTimeout(() => {
-            const iframe = document.createElement('iframe')
-            iframe.style.display = 'none'
-            iframe.src = redirectURL
-            document.body.appendChild(iframe)
-            setTimeout(() => {
-              document.body.removeChild(iframe)
-              console.log('📱 备用方法：iframe跳转完成')
-            }, 200)
-          }, 200)
+            if (!document.hidden) {
+              console.log('🔄 尝试备用跳转方法')
+              const iframe = document.createElement('iframe')
+              iframe.style.display = 'none'
+              iframe.src = redirectURL
+              document.body.appendChild(iframe)
+              
+              // 短暂延迟后移除iframe
+              setTimeout(() => {
+                if (document.body.contains(iframe)) {
+                  document.body.removeChild(iframe)
+                }
+              }, 1000)
+            }
+          }, 1000)
           
         } catch (error) {
           console.error('❌ URL跳转失败:', error)
           setUIState(prev => ({ 
             ...prev, 
-            error: 'Mac应用启动失败，请检查是否已安装InstaGo应用'
+            error: 'Mac应用启动失败。请检查：\n1. 是否已安装InstaGo应用\n2. 应用是否正在运行\n3. URL scheme是否正确注册'
           }))
         }
-      }, 1500)
+      }, 1200) // 稍微缩短延迟时间，提升用户体验
       
     } catch (error) {
       console.error('❌ 处理回调时出错:', error)
-      setUIState(prev => ({ ...prev, error: '处理授权时出错，请重试' }))
+      
+      // 详细的错误信息
+      let errorMessage = '处理授权时出错'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = '网络连接错误，请检查网络后重试'
+        } else if (error.message.includes('auth') || error.message.includes('token')) {
+          errorMessage = '身份验证错误，请重新登录'
+        } else {
+          errorMessage = `处理授权失败: ${error.message}`
+        }
+      }
+      
+      setUIState(prev => ({ 
+        ...prev, 
+        error: `${errorMessage}\n\n如果问题持续，请尝试:\n1. 刷新页面重新开始\n2. 清除浏览器缓存\n3. 检查Mac应用是否正常运行` 
+      }))
     }
   }
 
@@ -383,14 +497,43 @@ function LoginForm() {
       
       console.log('✅ 登录成功!')
       
-      // 登录成功后，等待用户状态更新，然后显示确认对话框
-      setTimeout(() => {
+      // 登录成功后直接检查是否需要显示Mac app连接对话框
+      console.log('📊 登录成功后状态检查:')
+      console.log('  - callback参数:', !!callbackURL ? '存在' : '不存在')
+      console.log('  - callback URL:', callbackURL || '无')
+      console.log('  - 当前用户状态:', !!user ? '已登录' : '未登录')
+      console.log('  - UI状态切换:', callbackURL ? 'Mac连接对话框' : '跳转到主页')
+      
+      if (callbackURL) {
+        console.log('✅ 检测到callback参数，显示Mac app连接对话框')
+        console.log('⚡ 即将显示确认对话框，等待用户确认连接Mac应用')
+        console.log('🔄 设置UI状态: showReauthDialog=true, showLoginForm=false')
+        
+        setUIState(prev => {
+          console.log('📝 UI状态更新前:', { ...prev })
+          const newState = {
+            ...prev, 
+            showReauthDialog: true,
+            showLoginForm: false,
+            error: null
+          }
+          console.log('📝 UI状态更新后:', newState)
+          return newState
+        })
+      } else {
+        console.log('ℹ️ 无callback参数，登录完成后跳转到主页')
+        // 如果没有callback参数，登录成功后跳转到主页
+        setTimeout(() => {
+          console.log('🚀 正在跳转到主页...')
+          window.location.href = '/'
+        }, 1500)
+        
         setUIState(prev => ({ 
           ...prev, 
-          showReauthDialog: true,
-          showLoginForm: false 
+          showLoginForm: false,
+          error: null
         }))
-      }, 1000)
+      }
       
     } catch (err: unknown) {
       console.error('Caught error:', err)
@@ -402,7 +545,19 @@ function LoginForm() {
   }
 
   // 重新授权确认对话框
+  console.log('📊 当前渲染状态检查:', {
+    showReauthDialog: uiState.showReauthDialog,
+    showLoginForm: uiState.showLoginForm,
+    showRedirectMessage: uiState.showRedirectMessage,
+    showCooldownMessage: uiState.showCooldownMessage,
+    showCancelMessage: uiState.showCancelMessage,
+    hasError: !!uiState.error,
+    hasCallbackURL: !!callbackURL,
+    hasUser: !!user
+  })
+  
   if (uiState.showReauthDialog) {
+    console.log('📺 正在渲染Mac app连接确认对话框')
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
         <div className="flex flex-col items-center">
@@ -469,9 +624,12 @@ function LoginForm() {
                 <AlertCircle className="h-6 w-6 text-yellow-600" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">请稍候</h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 mb-4">
                 刚刚已经发送过授权请求，请等待几秒后再试。
               </p>
+              <div className="text-sm text-gray-500 mb-6">
+                为了避免重复请求冲突，系统设置了3秒冷却时间。
+              </div>
               <button
                 onClick={() => window.close()}
                 className="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
@@ -512,21 +670,65 @@ function LoginForm() {
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
               
-              {/* 调试信息 */}
+              {/* 调试信息 - 默认展开以便快速排查问题 */}
               {uiState.debugURL && (
-                <details className="mt-6 text-left">
-                  <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-                    🔍 调试信息（点击查看回调URL）
+                <details className="mt-6 text-left" open>
+                  <summary className="cursor-pointer text-sm text-gray-700 hover:text-gray-900 font-medium">
+                    🔍 回调信息（排查问题时查看）
                   </summary>
-                  <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                    <p className="text-xs text-gray-600 mb-2">发送给Mac app的URL:</p>
-                    <code className="text-xs text-blue-600 break-all bg-white p-2 rounded border block">
-                      {uiState.debugURL}
-                    </code>
-                                         <div className="mt-2 flex gap-2">
+                  <div className="mt-2 p-3 bg-gray-50 rounded-md space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2 font-medium">📋 完整回调URL:</p>
+                      <code className="text-xs text-blue-600 break-all bg-white p-2 rounded border block">
+                        {uiState.debugURL}
+                      </code>
+                    </div>
+                    
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2 font-medium">🔍 URL解析:</p>
+                      <div className="text-xs bg-white p-2 rounded border">
+                        {(() => {
+                          try {
+                            const url = new URL(uiState.debugURL || '')
+                            const params = new URLSearchParams(url.search)
+                            return (
+                              <div className="space-y-1">
+                                <div><span className="text-gray-500">协议:</span> <code className="text-blue-600">{url.protocol}</code></div>
+                                <div><span className="text-gray-500">主机:</span> <code className="text-blue-600">{url.hostname}</code></div>
+                                <div><span className="text-gray-500">参数数量:</span> <code className="text-blue-600">{params.size}个</code></div>
+                                <div><span className="text-gray-500">令牌长度:</span> <code className="text-blue-600">{params.get('token')?.length || 0}字符</code></div>
+                                <div><span className="text-gray-500">用户ID:</span> <code className="text-blue-600">{params.get('user_id') || '未找到'}</code></div>
+                              </div>
+                            )
+                          } catch (e) {
+                            return <span className="text-red-600">URL解析错误: {e instanceof Error ? e.message : '未知错误'}</span>
+                          }
+                        })()}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2 font-medium">💡 排查建议:</p>
+                      <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside bg-white p-2 rounded border">
+                        <li>确认InstaGo Mac应用正在运行</li>
+                        <li>检查应用是否在菜单栏显示</li>
+                        <li>尝试重启Mac应用重新注册URL scheme</li>
+                        <li>查看Mac应用控制台日志</li>
+                      </ul>
+                    </div>
+                                         <div className="mt-3 flex gap-2">
                        <button 
-                         onClick={() => navigator.clipboard.writeText(uiState.debugURL || '')}
-                         className="text-xs text-blue-600 hover:text-blue-800"
+                         onClick={() => {
+                           navigator.clipboard.writeText(uiState.debugURL || '')
+                           // 简单的复制成功反馈
+                           const btn = event?.target as HTMLButtonElement
+                           const originalText = btn.textContent
+                           btn.textContent = '✅ 已复制'
+                           setTimeout(() => {
+                             btn.textContent = originalText
+                           }, 2000)
+                         }}
+                         className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-200 rounded hover:bg-blue-50"
                        >
                          📋 复制URL
                        </button>
@@ -534,12 +736,29 @@ function LoginForm() {
                          onClick={() => {
                            if (uiState.debugURL) {
                              console.log('🔄 手动重试跳转:', uiState.debugURL)
+                             // 尝试多种跳转方法
                              window.location.href = uiState.debugURL
+                             
+                             // 备用方法：创建临时链接点击
+                             setTimeout(() => {
+                               const link = document.createElement('a')
+                               link.href = uiState.debugURL || ''
+                               link.style.display = 'none'
+                               document.body.appendChild(link)
+                               link.click()
+                               document.body.removeChild(link)
+                             }, 500)
                            }
                          }}
-                         className="text-xs text-green-600 hover:text-green-800"
+                         className="text-xs text-green-600 hover:text-green-800 px-2 py-1 border border-green-200 rounded hover:bg-green-50"
                        >
-                         🔄 手动重试
+                         🔄 立即重试
+                       </button>
+                       <button 
+                         onClick={() => location.reload()}
+                         className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded hover:bg-gray-50"
+                       >
+                         🔄 重新开始
                        </button>
                      </div>
                   </div>
