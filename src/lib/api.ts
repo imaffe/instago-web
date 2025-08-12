@@ -109,6 +109,53 @@ export interface QuickLinkDict {
   content: string
 }
 
+// Card type interfaces
+export interface ActionableLink {
+  url: string
+  title: string
+}
+
+export interface ReferenceCard {
+  card_type: 'reference'
+  reference_entry_name: string
+  reference_type: string
+  quick_note: string
+  most_valuable_info_link: string
+  most_valuable_info_link_title: string
+  actionable_links: ActionableLink[]
+}
+
+export interface CalendarCard {
+  card_type: 'calendar'
+  title: string
+  date: string
+  start_time: string
+  end_time?: string
+  location?: string
+  description?: string
+  meeting_link?: string
+}
+
+export interface ContactCard {
+  card_type: 'contact'
+  name: string
+  industry?: string
+  company?: string
+  title?: string
+  context?: string
+  todo?: string
+}
+
+export interface BookmarkCard {
+  card_type: 'bookmark'
+  title: string
+  origin_url?: string
+  summary?: string
+  tags: string[]
+}
+
+export type Card = ReferenceCard | CalendarCard | ContactCard | BookmarkCard
+
 export interface Screenshot {
   id: string
   user_id: string
@@ -126,6 +173,7 @@ export interface Screenshot {
   file_size?: number
   process_status?: 'pending' | 'processed' | 'error'
   quick_link?: QuickLinkDict
+  cards?: Card[]
 }
 
 export interface QueryResult {
@@ -136,8 +184,39 @@ export interface QueryResult {
 // 安全的日期格式化函数
 export const api = {
   screenshots: {
-    list: async (): Promise<Screenshot[]> => {
-      return request<Screenshot[]>('/screenshot-note?skip=0&limit=100');
+    list: async (options?: { since?: number, limit?: number }): Promise<Screenshot[]> => {
+      const { since, limit = 100 } = options || {}
+      let url = `/screenshot-note?skip=0&limit=${limit}`
+      
+      // Add since parameter for incremental updates
+      if (since) {
+        // Convert timestamp to ISO string for API
+        const sinceDate = new Date(since).toISOString()
+        url += `&since=${encodeURIComponent(sinceDate)}`
+      }
+      
+      return request<Screenshot[]>(url);
+    },
+
+    // Lightweight check for new screenshots count
+    checkUpdates: async (since?: number): Promise<{ count: number, hasUpdates: boolean }> => {
+      let url = '/screenshot-note?skip=0&limit=1'
+      
+      if (since) {
+        const sinceDate = new Date(since).toISOString()
+        url += `&since=${encodeURIComponent(sinceDate)}`
+      }
+      
+      try {
+        const result = await request<Screenshot[]>(url)
+        return {
+          count: result.length,
+          hasUpdates: result.length > 0
+        }
+      } catch (error) {
+        console.warn('Failed to check for updates:', error)
+        return { count: 0, hasUpdates: false }
+      }
     },
 
     get: async (id: string): Promise<Screenshot> => {

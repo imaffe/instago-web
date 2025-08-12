@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { X, Calendar, Eye, Tag, Copy, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
-import { Screenshot, formatDateSafe } from '@/lib/api'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { X, Calendar, Eye, Tag, Copy, ExternalLink, ChevronLeft, ChevronRight, Layers } from 'lucide-react'
+import { Screenshot, formatDateSafe, Card } from '@/lib/api'
+import { ReferenceCard, CalendarCard, ContactCard, BookmarkCard } from '@/components/cards'
 
 interface ScreenshotDetailModalProps {
   screenshot: Screenshot | null
@@ -130,6 +129,22 @@ export function ScreenshotDetailModal({
     }
   }
 
+  // 渲染卡片的函数
+  const renderCard = (card: Card, index: number) => {
+    switch (card.card_type) {
+      case 'reference':
+        return <ReferenceCard key={index} card={card} />
+      case 'calendar':
+        return <CalendarCard key={index} card={card} />
+      case 'contact':
+        return <ContactCard key={index} card={card} />
+      case 'bookmark':
+        return <BookmarkCard key={index} card={card} />
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* 背景遮罩 */}
@@ -154,9 +169,9 @@ export function ScreenshotDetailModal({
           isAnimating || !cardPosition
             ? {
                 width: '90vw',
-                maxWidth: '1000px',
+                maxWidth: '1400px',
                 height: '85vh',
-                maxHeight: '700px',
+                maxHeight: '900px',
                 minWidth: '320px',
                 minHeight: '400px',
               }
@@ -318,6 +333,19 @@ export function ScreenshotDetailModal({
                         </div>
                       )}
 
+                      {/* Action Cards */}
+                      {screenshot.cards && screenshot.cards.length > 0 && (
+                        <div className="mb-6">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                            <Layers className="w-5 h-5 mr-2 text-indigo-500" />
+                            智能卡片
+                          </h3>
+                          <div className="space-y-3">
+                            {screenshot.cards.map((card, index) => renderCard(card, index))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* AI标签 */}
                       {aiTags.length > 0 && (
                         <div className="mb-6">
@@ -361,37 +389,6 @@ export function ScreenshotDetailModal({
                         </div>
                       )}
 
-                      {/* Markdown内容 */}
-                      {screenshot.markdown_content && (
-                        <div className="mb-6">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
-                            <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
-                            详细分析
-                          </h3>
-                          <div className="prose prose-sm max-w-none bg-green-50 dark:bg-green-900 p-4 rounded-lg overflow-hidden">
-                            <ReactMarkdown 
-                              remarkPlugins={[remarkGfm]}
-                              components={{
-                                // 自定义组件样式
-                                h1: ({children}) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-white">{children}</h1>,
-                                h2: ({children}) => <h2 className="text-lg font-semibold mt-3 mb-2 text-gray-900 dark:text-white">{children}</h2>,
-                                h3: ({children}) => <h3 className="text-base font-medium mt-2 mb-1 text-gray-900 dark:text-white">{children}</h3>,
-                                p: ({children}) => <p className="mb-2 leading-relaxed text-gray-700 dark:text-gray-300">{children}</p>,
-                                ul: ({children}) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                                ol: ({children}) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                                li: ({children}) => <li className="text-gray-700 dark:text-gray-300">{children}</li>,
-                                code: ({children}) => <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono text-gray-900 dark:text-gray-100">{children}</code>,
-                                pre: ({children}) => <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto text-sm text-gray-900 dark:text-gray-100">{children}</pre>,
-                                blockquote: ({children}) => <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 mb-2">{children}</blockquote>,
-                                strong: ({children}) => <strong className="font-semibold text-gray-900 dark:text-white">{children}</strong>,
-                                em: ({children}) => <em className="italic text-gray-700 dark:text-gray-300">{children}</em>,
-                              }}
-                            >
-                              {screenshot.markdown_content}
-                            </ReactMarkdown>
-                          </div>
-                        </div>
-                      )}
                     </>
                   )}
 

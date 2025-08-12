@@ -12,8 +12,18 @@ declare global {
   }
 }
 
-const DEV_API_URL = 'https://82540c0ac675.ngrok-free.app/api/v1'
-const PROD_API_URL = 'https://instago-server-fbtibvhmga-uc.a.run.app/api/v1'
+// 动态获取开发环境 API URL，支持环境变量覆盖
+const getDevApiUrl = (): string => {
+  // 优先使用环境变量（在构建时注入）
+  if (process.env.NEXT_PUBLIC_DEV_API_URL) {
+    return process.env.NEXT_PUBLIC_DEV_API_URL
+  }
+  // fallback 到默认值（会被 update-dev-url.js 脚本自动更新）
+  return 'https://82540c0ac675.ngrok-free.app/api/v1'
+}
+
+const DEV_API_URL = getDevApiUrl()
+const PROD_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://instago-server-fbtibvhmga-uc.a.run.app/api/v1'
 const DEV_MODE_KEY = 'instago_dev_mode'
 
 class DevModeManager {
@@ -53,11 +63,28 @@ class DevModeManager {
 
       // 注册 devStatus() 函数到全局
       window.devStatus = () => {
-        console.log(`当前模式: ${this.isDevMode ? '开发模式' : '生产模式'}`)
+        console.log('📊 InstaGo 开发环境状态')
+        console.log('========================')
+        console.log(`当前模式: ${this.isDevMode ? '🔧 开发模式' : '🏭 生产模式'}`)
         console.log(`API URL: ${this.getApiUrl()}`)
+        console.log(`开发 API: ${DEV_API_URL}`)
+        console.log(`生产 API: ${PROD_API_URL}`)
+        console.log(`环境变量: ${process.env.NEXT_PUBLIC_DEV_API_URL ? '✅ 已设置' : '❌ 未设置'}`)
+        
+        // 检查 ngrok 连接状态
+        if (this.isDevMode) {
+          console.log('🌐 ngrok 状态检查...')
+          fetch(DEV_API_URL.replace('/api/v1', '/docs'))
+            .then(() => console.log('✅ 开发服务器连接正常'))
+            .catch(() => console.log('❌ 开发服务器连接失败'))
+        }
+        
         return {
           isDevMode: this.isDevMode,
-          apiUrl: this.getApiUrl()
+          apiUrl: this.getApiUrl(),
+          devApiUrl: DEV_API_URL,
+          prodApiUrl: PROD_API_URL,
+          hasEnvVar: !!process.env.NEXT_PUBLIC_DEV_API_URL
         }
       }
 
@@ -81,6 +108,13 @@ class DevModeManager {
       console.log('  cache()      - 查看缓存管理选项')
       console.log('  clearCache() - 清除所有缓存')
       console.log('  cacheStats() - 查看缓存统计')
+      console.log('')
+      console.log('🔧 当前配置:')
+      console.log(`  开发 API: ${DEV_API_URL}`)
+      console.log(`  生产 API: ${PROD_API_URL}`)
+      console.log(`  环境变量: ${process.env.NEXT_PUBLIC_DEV_API_URL ? '✅ 已设置' : '❌ 未设置'}`)
+      console.log('')
+      console.log('💡 提示: 运行 npm run update-dev-url 更新开发环境地址')
     }
   }
 

@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "update-dev-url": "node scripts/update-dev-url.js",
+    "dev:full": "npm run update-dev-url && npm run dev",
+    "setup:env": "cp .env.local.example .env.local && echo '✅ 已创建 .env.local，请手动配置必要的环境变量'",
+    "check:env": "node -e \"console.log('🔧 环境配置检查:'); console.log('DEV_API_URL:', process.env.NEXT_PUBLIC_DEV_API_URL || '❌ 未设置'); console.log('PROD_API_URL:', process.env.NEXT_PUBLIC_API_URL || '❌ 未设置');\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.1",
