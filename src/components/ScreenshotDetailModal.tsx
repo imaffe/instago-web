@@ -225,18 +225,23 @@ export function ScreenshotDetailModal({
           {showContent ? (
             <div className="h-full flex flex-col lg:flex-row min-h-0">
               {/* 图片区域 */}
-              <div className="flex-1 bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 lg:p-8 min-h-0 rounded-t-xl lg:rounded-t-xl lg:rounded-l-xl lg:rounded-tr-none">
-                <div className="max-w-full max-h-full flex items-center justify-center">
+              <div className="w-full lg:w-1/2 bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 lg:p-8 min-h-0 rounded-t-xl lg:rounded-t-xl lg:rounded-l-xl lg:rounded-tr-none">
+                <div className="w-full h-full flex items-center justify-center">
                   <img
                     src={screenshot.image_url}
                     alt={screenshot.ai_title || '截图'}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg animate-in fade-in zoom-in-95 duration-500"
+                    className="w-full h-full object-contain rounded-lg shadow-lg animate-in fade-in zoom-in-95 duration-500"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain'
+                    }}
                   />
                 </div>
               </div>
 
               {/* 信息面板 */}
-              <div className="w-full lg:w-96 bg-white dark:bg-gray-800 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-500 min-h-0 lg:max-h-full rounded-b-xl lg:rounded-b-xl lg:rounded-r-xl lg:rounded-bl-none">
+              <div className="w-full lg:w-1/2 bg-white dark:bg-gray-800 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-500 min-h-0 lg:max-h-full rounded-b-xl lg:rounded-b-xl lg:rounded-r-xl lg:rounded-bl-none">
                 {/* 头部信息 */}
                 <div className="flex-shrink-0 p-4 lg:p-6 border-b border-gray-200 dark:border-gray-700">
                   <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">

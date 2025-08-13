@@ -401,30 +401,12 @@ function LoginForm() {
         document.removeEventListener('visibilitychange', handleVisibilityChange)
         document.addEventListener('visibilitychange', handleVisibilityChangeWithCleanup)
         
-        // 使用多种方式尝试触发URL scheme，提高成功率
+        // 触发URL scheme跳转到Mac应用
         try {
           console.log('🚀 开始跳转到Mac应用')
           
-          // 方法1: 直接设置location.href (主要方法)
+          // 直接设置location.href触发URL scheme
           window.location.href = redirectURL
-          
-          // 方法2: 如果主要方法失败，创建隐藏的iframe作为备用
-          setTimeout(() => {
-            if (!document.hidden) {
-              console.log('🔄 尝试备用跳转方法')
-              const iframe = document.createElement('iframe')
-              iframe.style.display = 'none'
-              iframe.src = redirectURL
-              document.body.appendChild(iframe)
-              
-              // 短暂延迟后移除iframe
-              setTimeout(() => {
-                if (document.body.contains(iframe)) {
-                  document.body.removeChild(iframe)
-                }
-              }, 1000)
-            }
-          }, 1000)
           
         } catch (error) {
           console.error('❌ URL跳转失败:', error)
