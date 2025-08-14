@@ -303,7 +303,12 @@ function LoginForm() {
         decodedCallback = callbackURL
       }
       
-      const redirectURL = `${decodedCallback}?${callbackParams.toString()}`
+      // 确保URL格式正确 - 在callback URL后添加路径分隔符（如果没有的话）
+      const needsSlash = !decodedCallback.includes('?') && !decodedCallback.endsWith('/')
+      const baseURL = needsSlash ? `${decodedCallback}/` : decodedCallback
+      const redirectURL = baseURL.includes('?') 
+        ? `${baseURL}&${callbackParams.toString()}`
+        : `${baseURL}?${callbackParams.toString()}`
 
       console.log('📤 发送授权回调详细信息:')
       console.log('  ===== URL处理过程 =====')
@@ -404,15 +409,39 @@ function LoginForm() {
         // 触发URL scheme跳转到Mac应用
         try {
           console.log('🚀 开始跳转到Mac应用')
+          console.log('🎯 使用多种方法尝试触发URL scheme')
           
-          // 直接设置location.href触发URL scheme
-          window.location.href = redirectURL
+          // 方法1：使用window.open()触发，这会显示浏览器询问弹窗
+          console.log('📱 方法1: 尝试使用window.open触发URL scheme')
+          const popup = window.open(redirectURL, '_self')
+          
+          // 如果window.open被阻止，使用备选方法
+          setTimeout(() => {
+            if (!popup || popup.closed) {
+              console.log('📱 方法2: window.open被阻止，尝试location.href')
+              window.location.href = redirectURL
+            }
+          }, 100)
+          
+          // 方法3：创建隐藏iframe作为备选
+          setTimeout(() => {
+            console.log('📱 方法3: 使用iframe作为备选触发方法')
+            const iframe = document.createElement('iframe')
+            iframe.style.display = 'none'
+            iframe.src = redirectURL
+            document.body.appendChild(iframe)
+            
+            // 清理iframe
+            setTimeout(() => {
+              document.body.removeChild(iframe)
+            }, 1000)
+          }, 200)
           
         } catch (error) {
           console.error('❌ URL跳转失败:', error)
           setUIState(prev => ({ 
             ...prev, 
-            error: 'Mac应用启动失败。请检查：\n1. 是否已安装InstaGo应用\n2. 应用是否正在运行\n3. URL scheme是否正确注册'
+            error: 'Mac应用启动失败。请检查：\n1. 是否已安装InstaGo应用\n2. 应用是否正在运行\n3. URL scheme是否正确注册\n\n提示：如果浏览器询问是否打开InstaGo应用，请点击"允许"'
           }))
         }
       }, 1200) // 稍微缩短延迟时间，提升用户体验

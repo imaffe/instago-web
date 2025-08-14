@@ -8,6 +8,7 @@ import { DeleteConfirmModal } from '@/components/DeleteConfirmModal'
 import { ErrorToast } from '@/components/ErrorToast'
 import { ScreenshotDetailModal } from '@/components/ScreenshotDetailModal'
 import { AnkiCardViewer } from '@/components/AnkiCardViewer'
+import { CollectionsViewer } from '@/components/CollectionsViewer'
 import { api, Screenshot, formatDateSafe } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { useScreenshotCache } from '@/hooks/useScreenshotCache'
@@ -25,7 +26,8 @@ import {
   Filter,
   Eye,
   Download,
-  BookOpen
+  BookOpen,
+  FolderOpen
 } from 'lucide-react'
 
 export default function Home() {
@@ -107,6 +109,7 @@ export default function Home() {
   const categories = [
     { id: 'all', name: 'All Instas', icon: Images, count: screenshots.length },
     { id: 'anki', name: 'Anki Cards', icon: BookOpen, count: screenshots.filter(s => s.ai_title || s.ai_description || s.markdown_content).length },
+    { id: 'collections', name: 'Collections', icon: FolderOpen, count: screenshots.filter(s => s.ai_tags && s.ai_tags.length > 0).length },
     { id: 'recent', name: 'Recents', icon: Clock, count: 0 },
     { id: 'trash', name: 'Deleted', icon: Trash2, count: 0 },
   ]
@@ -288,6 +291,10 @@ export default function Home() {
   const renderMainContent = () => {
     if (selectedCategory === 'anki') {
       return <AnkiCardViewer />
+    }
+
+    if (selectedCategory === 'collections') {
+      return <CollectionsViewer />
     }
 
     // 搜索时的加载状态
@@ -572,29 +579,29 @@ export default function Home() {
 
         {/* 导航分类 */}
         <div className="flex-1 p-4">
-                     <nav className="space-y-2">
-             {categories.map((category) => {
-               const Icon = category.icon
-               return (
-                 <button
-                   key={category.id}
-                   onClick={() => setSelectedCategory(category.id)}
-                   className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                     selectedCategory === category.id
-                       ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
-                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                   }`}
-                   title={category.name} // 显示完整文本的工具提示
-                 >
-                   <div className="flex items-center space-x-3 flex-1 min-w-0">
-                     <Icon className="w-5 h-5 flex-shrink-0" />
-                     <span className="truncate">{truncateText(category.name)}</span>
-                   </div>
-                   <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{category.count}</span>
-                 </button>
-               )
-             })}
-           </nav>
+          <nav className="space-y-2">
+            {categories.map((category) => {
+              const Icon = category.icon
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    selectedCategory === category.id
+                      ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                  title={category.name} // 显示完整文本的工具提示
+                >
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="truncate">{truncateText(category.name)}</span>
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{category.count}</span>
+                </button>
+              )
+            })}
+          </nav>
 
           {/* 标签分类 */}
           <div className="mt-8">
@@ -677,8 +684,8 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-4">
-              {/* 只在非 Anki Cards 页面显示搜索和视图切换 */}
-              {selectedCategory !== 'anki' && (
+              {/* 只在默认页面显示搜索和视图切换 */}
+              {selectedCategory !== 'anki' && selectedCategory !== 'collections' && (
                 <>
                   {/* 搜索框 */}
                   <div className="relative">

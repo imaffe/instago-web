@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Upload, Search, Home, BookOpen } from 'lucide-react'
+import { LogOut, Upload, Search, Home, BookOpen, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 
 export function Navbar() {
@@ -18,7 +18,7 @@ export function Navbar() {
             alt="InstaGo Logo" 
             className="w-16 h-16 object-contain"
           />
-          <span>Instago</span>
+          <span>InstaGo</span>
         </Link>
         
         <div className="flex items-center space-x-6">
@@ -35,6 +35,11 @@ export function Navbar() {
           <Link href="/search" className="flex items-center space-x-2 hover:text-gray-300">
             <Search size={20} />
             <span>Search</span>
+          </Link>
+          
+          <Link href="/collections" className="flex items-center space-x-2 hover:text-gray-300">
+            <FolderOpen size={20} />
+            <span>Collections</span>
           </Link>
           
           <Link href="/anki" className="flex items-center space-x-2 hover:text-gray-300">
